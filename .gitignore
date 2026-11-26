@@ -4,3 +4,7 @@ __pycache__/
 data/
 .vercel/
 handoff.md
+secrets/
+client_secret*.json
+*.pem
+*.key
