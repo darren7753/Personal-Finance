@@ -22,8 +22,21 @@ So I made a small website that follows exactly those rules.
 - **Spending:** every expense by budget, with a daily cap that turns each day green or red.
 - **Pay cycles:** start a new cycle every payday. Past cycles stay saved and can be opened any time.
 - **Privacy eye:** one button that hides every number on screen, like in a banking app.
+- **Telegram bot:** I can add, view, edit and delete spending from my phone without opening the site (see below).
 - **Works on phones, tablets and laptops.**
 - **Guest demo:** a visitor gets randomly generated data and simulated prices. Nothing is saved, and the server refuses to hand guests any real data.
+
+## Telegram bot
+
+Opening a website every time I buy a coffee is too much effort, so I added a private Telegram bot. It works on the **daily, date and free spending** budgets, and it uses the same data and rules as the site.
+
+- **Quick add:** send a message that starts with the amount, such as `25000 lunch`, `25k coffee` or `1.5jt rent`. The bot then asks for the budget, the category and the date with buttons. The `k`, `rb` and `jt` suffixes mean thousand, thousand and million.
+- **Guided add:** `/menu` shows **Add spending** and **View, edit or delete**.
+- **View, edit and delete:** the daily budget is listed day by day with its total and whether it is under, near or over the daily cap. The date and free budgets are listed newest first. Delete always asks first.
+- **Private:** only the Telegram IDs on my allow-list get an answer, and Telegram's webhook secret is checked on every request.
+- **Shared categories:** the website and the bot read the same list, `static/categories.json`.
+
+The bot runs as a webhook on the same Vercel deployment (`/telegram/webhook`, code in `telegram_bot.py`). To try it locally without a webhook, run `tools/telegram_poll.py`.
 
 ## How it is built
 
@@ -35,6 +48,7 @@ So I made a small website that follows exactly those rules.
 | Prices | Yahoo Finance through `yfinance` (stocks, gold futures and USD/IDR) |
 | Database | Supabase Postgres on the live site, a local JSON file when running on my laptop |
 | Login | Google sign-in with an allow-list, plus a password as a backup |
+| Bot | Telegram Bot API through a webhook |
 | Hosting | Vercel (every push to `main` deploys automatically) |
 | Python tooling | [uv](https://docs.astral.sh/uv/) |
 
@@ -59,17 +73,21 @@ To use the login and the database, set these environment variables (a local `.en
 | `SECRET_KEY` | Signs the session cookie |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in |
 | `ALLOWED_EMAILS` | Comma-separated emails allowed to sign in with Google |
+| `TELEGRAM_BOT_TOKEN` | Token from BotFather (only if you want the bot) |
+| `TELEGRAM_ALLOWED_IDS` | Comma-separated Telegram IDs allowed to use the bot |
 | `GUEST_DEMO=0` | Optional. Turns the demo off |
 
 ## Project layout
 
 ```
-app.py              Flask app: pages, API, login, price cache
+app.py              Flask app: pages, API, login, price cache, bot webhook
+telegram_bot.py     The Telegram bot
 templates/          Login page and the app shell
 static/js/app.js    All app logic and views
 static/js/demo.js   Random demo data and simulated prices
 static/css/         The whole theme, including every responsive rule
-tools/              Helper scripts (icon builder, database import, backup)
+static/categories.json  The category list shared by the site and the bot
+tools/              Helper scripts (icon builder, database import, backup, local bot polling)
 ```
 
 ## A note on privacy
