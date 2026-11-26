@@ -564,7 +564,8 @@ function savingsPanel(k) {
 const CATS = ['Food & drink', 'Groceries', 'Transport', 'Entertainment', 'Date', 'Shopping', 'Health', 'Housing', 'Installments', 'Subscriptions', 'Bills & utilities', 'Laundry', 'Investment', 'Other'];
 const CAT_ICON = {'Food & drink': 'food', 'Groceries': 'cart', 'Transport': 'car', 'Entertainment': 'movies', 'Date': 'heart', 'Shopping': 'bag', 'Health': 'heartpulse', 'Housing': 'home', 'Installments': 'card', 'Subscriptions': 'repeat', 'Bills & utilities': 'flash', 'Laundry': 'washer', 'Investment': 'trending', 'Other': 'box'};
 const catLabel = n => `<span class="ic">${icon(CAT_ICON[n] || 'box', 'regular', 16)}</span> ${esc(n)}`;
-const catOpts = sel => CATS.map(n => `<option value="${n}" ${n === sel ? 'selected' : ''}>${n}</option>`).join('');
+// alphabetical, but the category already chosen stays at the top of the list
+const catOpts = sel => [...CATS].sort((a, b) => (b === sel) - (a === sel) || a.localeCompare(b)).map(n => `<option value="${n}" ${n === sel ? 'selected' : ''}>${n}</option>`).join('');
 const today = () => new Date().toLocaleDateString('sv-SE');
 let spendTab = 'daily', editing = null;
 const TAB_WALLET = {daily: 'gopay', date: 'jago', free: 'jago'};
