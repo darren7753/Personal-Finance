@@ -76,6 +76,10 @@ tools/              Helper scripts (icon builder, database import, backup)
 
 This repository is public, so it contains **no personal or financial data and no credentials**. My real data lives only in the private database, and secrets live only in environment variables.
 
+## License
+
+The code is released under the [MIT License](LICENSE). The license covers my code only. The logos and icons keep their own licenses, listed below.
+
 ## Credits
 
 - Icons: [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) by Microsoft (MIT license, see `static/icons/`).
