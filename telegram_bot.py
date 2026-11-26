@@ -259,7 +259,59 @@ def ui_calendar(ym, ctx, back, mark=None):
     return "Pick a date.", rows
 
 
+def day_word(e, tot):
+    cap = e.get("cap") or 60000
+    return "over cap" if tot > cap else "near cap" if tot >= cap * WARN_AT else "under cap"
+
+
+def ui_days(s, page=0):
+    """Daily budget: one button per day with its total and cap status (like the website's Daily tab)."""
+    c = latest(s)
+    e = c["env"]["daily"]
+    by = {}
+    for x in e["spends"]:
+        by[x["date"]] = by.get(x["date"], 0) + x["amt"]
+    days = sorted(by, reverse=True)
+    pages = max(1, -(-len(days) // PAGE))
+    page = min(max(page, 0), pages - 1)
+    head = f"<b>{esc(e['name'])}</b> · {esc(c['label'])}\nSpent: {money(sum(by.values()))} of {money(e['amount'])}\n"
+    head += day_status(e, today()) + "\n"
+    head += "\nTap a day to see, edit or delete its entries." if days else "\nNo entries yet."
+    rows = []
+    for d in days[page * PAGE:(page + 1) * PAGE]:
+        dd = date.fromisoformat(d)
+        rows.append([(f"{dd:%a}, {dd.day} {dd:%b} · {money(by[d])} · {day_word(e, by[d])}", f"ld:{d}")])
+    nav = []
+    if page > 0:
+        nav.append(("‹ Newer", f"l:daily:{page - 1}"))
+    if page < pages - 1:
+        nav.append(("Older ›", f"l:daily:{page + 1}"))
+    if nav:
+        rows.append(nav)
+    rows.append([("Add here", "ab:daily"), ("Back", "l"), ("Menu", "m")])
+    return head, rows
+
+
+def ui_day(s, d):
+    """The entries of one day of the Daily budget."""
+    e = latest(s)["env"]["daily"]
+    items = sorted(((i, x) for i, x in enumerate(e["spends"]) if x["date"] == d), key=lambda t: t[0], reverse=True)
+    if not items:
+        return ui_days(s)
+    tot = sum(x["amt"] for _, x in items)
+    cap = e.get("cap") or 60000
+    head = f"<b>{esc(e['name'])}</b> · {fdate(d)}\n{money(tot)} of the {money(cap)} cap ({day_word(e, tot)})\n\nTap an entry to edit or delete it."
+    rows = []
+    for i, x in items:
+        note = x.get("note") or ""
+        rows.append([(f"{x['cat']} · {money(x['amt'])}" + (f" · {note[:14]}" if note else ""), f"ev:daily:{i}:{sig(x)}")])
+    rows.append([("Back to days", "l:daily"), ("Menu", "m")])
+    return head, rows
+
+
 def ui_list(s, key, page=0):
+    if key == "daily":
+        return ui_days(s, page)
     c = latest(s)
     e = c["env"][key]
     items = sorted(enumerate(e["spends"]), key=lambda t: (t[1]["date"], t[0]), reverse=True)
@@ -298,7 +350,7 @@ def ui_entry(s, key, idx, h, note=""):
         [("Edit category", f"ee:c:{ref}"), ("Edit date", f"ee:d:{ref}")],
         [("Edit amount", f"ee:a:{ref}"), ("Edit remarks", f"ee:n:{ref}")],
         [("Delete", f"dl:{ref}")],
-        [("Back to list", f"l:{key}")],
+        [("Back to this day", f"ld:{x['date']}") if key == "daily" else ("Back to list", f"l:{key}")],
     ]
 
 
@@ -394,6 +446,8 @@ def on_callback(chat, mid, data):
         if len(a) == 1:
             return ui_budgets(s, "l", "<b>View, edit or delete</b>\nWhich budget?")
         return ui_list(s, a[1], int(a[2]) if len(a) > 2 else 0)
+    if op == "ld":   # one day of the Daily budget
+        return ui_day(s, a[1])
     if op == "ev":
         return ui_entry(s, a[1], int(a[2]), a[3])
     if op == "ee":  # edit one field of an entry: ee:field:key:idx:h
@@ -421,12 +475,12 @@ def on_callback(chat, mid, data):
         key, idx, h = a[1], int(a[2]), a[3]
 
         def fn(st):
-            find(st, key, idx, h)
+            gone = find(st, key, idx, h)["date"]
             latest(st)["env"][key]["spends"].pop(idx)
-            return st
+            return st, gone
 
-        st = mutate(fn)
-        text, rows = ui_list(st, key)
+        st, gone = mutate(fn)
+        text, rows = ui_day(st, gone) if key == "daily" else ui_list(st, key)   # back to that day, or to all days if it is now empty
         return "<b>Deleted.</b>\n\n" + text, rows
     raise BotError("I did not understand that button.")
 
