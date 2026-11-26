@@ -8,3 +8,5 @@ secrets/
 client_secret*.json
 *.pem
 *.key
+desktop.ini
+Thumbs.db
