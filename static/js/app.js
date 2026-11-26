@@ -66,6 +66,7 @@ const K = () => calcAll().find(k => k.c.id === S.activeId);
 
 let saveChain = Promise.resolve();
 function persist() {
+  if (GUEST) return Promise.resolve();   // demo mode: nothing is ever saved
   saveChain = saveChain.then(async () => {
     const r = await fetch('/api/state', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(S)});
     if (r.status === 409) { alert('Your data was changed in another tab or window. The page will reload to show the latest data.'); location.reload(); return; }
@@ -335,8 +336,9 @@ async function loadQuotes(force) {
   if (typeof S === 'undefined' || !S || !S.wealth) return;
   const hs = S.wealth.stocks.holdings;
   try {
-    const r = await fetch('/api/quotes?symbols=' + hs.map(h => h.ticker + '.JK').concat(['GC=F', 'USDIDR=X']).join(',') + (force ? '&refresh=1' : ''));
-    const fresh = await r.json(), before = {...quotes};
+    const syms = hs.map(h => h.ticker + '.JK').concat(['GC=F', 'USDIDR=X']);
+    const fresh = GUEST ? demoQuotes(syms) : await (await fetch('/api/quotes?symbols=' + syms.join(',') + (force ? '&refresh=1' : ''))).json();
+    const before = {...quotes};
     let changed = false;
     Object.keys(fresh).forEach(s => {
       const o = before[s], n = fresh[s];
@@ -397,7 +399,7 @@ function stockPanel(k) {
   const upd = quotesAt ? new Date(quotesAt).toLocaleTimeString('en-GB') : '';
   const box = (label, val, cls = '', sub = '') => `<div class="stat"><div class="s">${label}</div><b class="${cls}">${val}</b>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
   return `
-  <div class="note"><span class="ni">ⓘ</span><div>These values are estimates. Prices come from Yahoo Finance and are delayed by about 10 minutes, so the numbers can differ slightly from your Stockbit app. Check the Stockbit app for your exact figures.</div></div>
+  <div class="note"><span class="ni">ⓘ</span><div>${GUEST ? 'These values are made up for this demo. Prices are simulated and change a little on every refresh.' : 'These values are estimates. Prices come from Yahoo Finance and are delayed by about 10 minutes, so the numbers can differ slightly from your Stockbit app. Check the Stockbit app for your exact figures.'}</div></div>
   <div class="grid g3" style="margin-bottom:14px">
     <div class="stat"><div class="s">Trading balance</div><input class="money big" inputmode="numeric" autocomplete="off" value="${fm(sc.cash)}" onchange="setCash(this.value)"></div>
     ${box('Invested', rp(sc.invested))}
@@ -415,7 +417,7 @@ function stockPanel(k) {
   </div>
   <div class="card">
     <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Holdings</div>
-      <div class="s" style="margin-left:auto;display:flex;align-items:center;gap:10px"><span class="live ${marketOpen() ? 'on' : ''}"><i></i>${marketOpen() ? 'Live' : 'Market closed'}</span>${noPrices ? 'Loading prices…' : `Yahoo Finance, delayed ~10 min · updated <span id="quoteTime">${upd}</span>${stale ? ' · <b class="neg">some prices are old</b>' : ''}`}<button class="link" onclick="loadQuotes(true).then(render)">Refresh</button></div></div>
+      <div class="s" style="margin-left:auto;display:flex;align-items:center;gap:10px"><span class="live ${marketOpen() ? 'on' : ''}"><i></i>${marketOpen() ? 'Live' : 'Market closed'}</span>${noPrices ? 'Loading prices…' : `${GUEST ? 'Simulated prices' : 'Yahoo Finance, delayed ~10 min'} · updated <span id="quoteTime">${upd}</span>${stale ? ' · <b class="neg">some prices are old</b>' : ''}`}<button class="link" onclick="loadQuotes(true).then(render)">Refresh</button></div></div>
     <form id="hadd" onsubmit="addHolding(event)"></form>
     <table class="crud">
       <tr><th style="width:150px">Stock</th><th class="r" style="width:110px">Lots</th><th class="r" style="width:190px">Invested</th><th class="r">Avg price</th><th class="r">Last price</th><th class="r">Today</th><th class="r">Market value</th><th class="r">P&L</th><th class="r">Return</th><th style="width:80px"></th></tr>
@@ -451,7 +453,7 @@ function goldPanel() {
   const gc = goldCalc(), items = [...S.wealth.gold.items].sort((a, b) => b.date.localeCompare(a.date));
   const box = (label, val, cls = '', sub = '') => `<div class="stat"><div class="s">${label}</div><b class="${cls}">${val}</b>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
   return `
-  <div class="note"><span class="ni">ⓘ</span><div>These values are estimates. The price is calculated from Yahoo Finance gold futures and the USD to IDR rate, so it can differ slightly from Treasury's own buy and sell prices. Check the Treasury app for your exact figures.</div></div>
+  <div class="note"><span class="ni">ⓘ</span><div>${GUEST ? 'These values are made up for this demo. The gold price is calculated from simulated gold futures and a simulated USD to IDR rate.' : "These values are estimates. The price is calculated from Yahoo Finance gold futures and the USD to IDR rate, so it can differ slightly from Treasury's own buy and sell prices. Check the Treasury app for your exact figures."}</div></div>
   <div class="grid g4" style="margin-bottom:14px">
     ${box('Total grams', gc.grams.toLocaleString('en-US', {maximumFractionDigits: 6}) + ' g')}
     ${box('Invested', rp(gc.paid))}
@@ -461,7 +463,7 @@ function goldPanel() {
   <div class="card">
     <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Treasury purchases</div>
       <div class="row" style="margin-left:auto;gap:12px"><span class="s">Today's price per gram</span><b class="price-amt">${gc.price ? rp(gc.price) : 'Loading…'}</b><span class="live on"><i></i>Live</span></div></div>
-    <div class="s" style="margin-bottom:10px">Each new purchase is taken from your cash saving. The live price is estimated from Yahoo Finance gold futures and the USD to IDR rate, matched to Treasury's sell price.</div>
+    <div class="s" style="margin-bottom:10px">Each new purchase is taken from your cash saving. ${GUEST ? 'The price is simulated for this demo.' : "The live price is estimated from Yahoo Finance gold futures and the USD to IDR rate, matched to Treasury's sell price."}</div>
     <form id="gadd" onsubmit="addGold(event)"></form>
     <table class="crud">
       <tr><th style="width:150px">Date</th><th class="r" style="width:120px">Grams</th><th class="r">Paid</th><th class="r">Price per gram</th><th class="r">Value now</th><th class="r">P&L</th><th>Remarks</th><th style="width:130px"></th></tr>
@@ -887,7 +889,7 @@ document.querySelectorAll('.logout').forEach(b => b.insertAdjacentHTML('afterbeg
 $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
 
 (async () => {
-  let saved = await (await fetch('/api/state')).json();
+  let saved = GUEST ? demoState() : await (await fetch('/api/state')).json();
   if (saved && saved.cycle) {   // migrate v1 data
     const o = saved, c = o.cycle;
     saved = {activeId: 'c1', basePrevSavings: c.savingsAfterSplit - Math.round(c.salary * c.savePct / 100),

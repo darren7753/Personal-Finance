@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body{% if guest %} data-guest="1"{% endif %}>
 <aside>
   <div class="brand">darren's <span>finance</span></div>
   <label>Pay cycle</label>
@@ -22,16 +22,18 @@
   </nav>
   {% if can_logout %}
   <form class="side-foot" method="post" action="{{ url_for('logout') }}">
-    <button class="logout" type="submit">Log out</button>
+    <button class="logout" type="submit">{{ 'Exit demo' if guest else 'Log out' }}</button>
   </form>
   {% endif %}
 </aside>
 <main><div class="wrap">
+  {% if guest %}<div class="note"><span class="ni">ⓘ</span><div><b>Demo mode.</b> All numbers are random and nothing is saved. Refresh the page to get a new set of data.</div></div>{% endif %}
   <div class="top"><div><div class="greet" id="greet"></div><div class="titlerow"><h1 id="title"></h1><button id="eye" class="eye" type="button" onclick="toggleEye()"></button></div></div></div>
   <div id="view"></div>
 </div></main>
 
 <script src="{{ url_for('static', filename='js/icons.js') }}"></script>
+<script src="{{ url_for('static', filename='js/demo.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

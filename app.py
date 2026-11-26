@@ -44,6 +44,7 @@ GOOGLE_ID = os.environ.get("GOOGLE_CLIENT_ID")
 GOOGLE_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 ALLOWED_EMAILS = {e.strip().lower() for e in os.environ.get("ALLOWED_EMAILS", "").split(",") if e.strip()}
 GOOGLE_ENABLED = bool(GOOGLE_ID and GOOGLE_SECRET and ALLOWED_EMAILS)
+GUEST_DEMO = os.environ.get("GUEST_DEMO", "1") != "0"  # "Try the demo" with random data; set GUEST_DEMO=0 to switch it off
 ON_VERCEL = bool(os.environ.get("VERCEL"))
 DATA = BASE / "data" / "state.json"
 QUOTES = BASE / "data" / "quotes.json"
@@ -64,13 +65,17 @@ if GOOGLE_ENABLED:
 
 @app.before_request
 def require_login():
-    if request.endpoint in ("static", "login", "auth_google", "auth_callback"):
+    if request.endpoint in ("static", "login", "auth_google", "auth_callback", "guest"):
         return None
     if not SITE_PASSWORD and not GOOGLE_ENABLED:
         if ON_VERCEL:  # never serve finance data publicly without a login
             return "No login is configured on the server (set SITE_PASSWORD or the Google sign-in settings).", 503
         return None  # local use: no login needed
     if session.get("ok"):
+        return None
+    if session.get("guest"):  # demo visitors get the pages, never the real data (the demo data is made up in their browser)
+        if request.path.startswith("/api/"):
+            return jsonify(error="not available in demo mode"), 403
         return None
     if request.path.startswith("/api/"):
         return jsonify(error="login required"), 401
@@ -89,7 +94,9 @@ def login():
         time.sleep(1)  # slow down password guessing
         error = "password"
     return (
-        render_template("login.html", error=error, google=GOOGLE_ENABLED, password=bool(SITE_PASSWORD)),
+        render_template(
+            "login.html", error=error, google=GOOGLE_ENABLED, password=bool(SITE_PASSWORD), guest_enabled=GUEST_DEMO
+        ),
         (401 if error else 200),
     )
 
@@ -117,6 +124,15 @@ def auth_callback():
     return redirect(url_for("login", error="denied"))
 
 
+@app.post("/guest")
+def guest():
+    if not GUEST_DEMO:
+        return redirect(url_for("login"))
+    session.clear()
+    session["guest"] = True  # not permanent: the demo ends when the browser is closed
+    return redirect(url_for("index"))
+
+
 @app.post("/logout")
 def logout():
     session.clear()
@@ -125,8 +141,9 @@ def logout():
 
 @app.get("/")
 def index():
-    # the Log out button only makes sense when the site has a login (not in plain local use)
-    return render_template("index.html", can_logout=bool(SITE_PASSWORD or GOOGLE_ENABLED))
+    is_guest = bool(session.get("guest"))
+    # the Log out button only makes sense when the site has a login (not in plain local use) or in demo mode
+    return render_template("index.html", can_logout=bool(SITE_PASSWORD or GOOGLE_ENABLED) or is_guest, guest=is_guest)
 
 
 # ---------- storage: Postgres (Supabase) when DATABASE_URL is set, otherwise local files ----------
