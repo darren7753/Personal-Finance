@@ -5,7 +5,9 @@ import tempfile
 import time
 from pathlib import Path
 
+from authlib.integrations.flask_client import OAuth
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 BASE = Path(__file__).parent
 
@@ -25,6 +27,7 @@ def _load_env_file():
 _load_env_file()
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)  # behind Vercel's proxy: keep https in generated URLs
 app.secret_key = os.environ.get("SECRET_KEY", "local-dev-only-not-secret")
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -35,6 +38,12 @@ app.config.update(
 
 DATABASE_URL = os.environ.get("DATABASE_URL")  # set on Vercel (Supabase); empty locally -> use data/*.json files
 SITE_PASSWORD = os.environ.get("SITE_PASSWORD")
+# Google sign-in is on only when all three are set. ALLOWED_EMAILS (comma separated) is required,
+# otherwise any Google account could sign in.
+GOOGLE_ID = os.environ.get("GOOGLE_CLIENT_ID")
+GOOGLE_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+ALLOWED_EMAILS = {e.strip().lower() for e in os.environ.get("ALLOWED_EMAILS", "").split(",") if e.strip()}
+GOOGLE_ENABLED = bool(GOOGLE_ID and GOOGLE_SECRET and ALLOWED_EMAILS)
 ON_VERCEL = bool(os.environ.get("VERCEL"))
 DATA = BASE / "data" / "state.json"
 QUOTES = BASE / "data" / "quotes.json"
@@ -42,14 +51,25 @@ QUOTE_TTL = 10  # seconds: don't hit Yahoo more often than this unless ?refresh=
 
 
 # ---------- login ----------
+oauth = OAuth(app)
+if GOOGLE_ENABLED:
+    oauth.register(
+        name="google",
+        client_id=GOOGLE_ID,
+        client_secret=GOOGLE_SECRET,
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email"},
+    )
+
+
 @app.before_request
 def require_login():
-    if request.endpoint in ("static", "login"):
+    if request.endpoint in ("static", "login", "auth_google", "auth_callback"):
         return None
-    if not SITE_PASSWORD:
-        if ON_VERCEL:  # never serve finance data publicly without a password
-            return "SITE_PASSWORD is not set on the server.", 503
-        return None  # local use: no password needed
+    if not SITE_PASSWORD and not GOOGLE_ENABLED:
+        if ON_VERCEL:  # never serve finance data publicly without a login
+            return "No login is configured on the server (set SITE_PASSWORD or the Google sign-in settings).", 503
+        return None  # local use: no login needed
     if session.get("ok"):
         return None
     if request.path.startswith("/api/"):
@@ -59,7 +79,7 @@ def require_login():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    error = False
+    error = request.args.get("error")  # set by the Google sign-in routes
     if request.method == "POST":
         if SITE_PASSWORD and hmac.compare_digest(request.form.get("password", ""), SITE_PASSWORD):
             session.clear()
@@ -67,8 +87,34 @@ def login():
             session["ok"] = True
             return redirect(url_for("index"))
         time.sleep(1)  # slow down password guessing
-        error = True
-    return render_template("login.html", error=error), (401 if error else 200)
+        error = "password"
+    return (
+        render_template("login.html", error=error, google=GOOGLE_ENABLED, password=bool(SITE_PASSWORD)),
+        (401 if error else 200),
+    )
+
+
+@app.get("/auth/google")
+def auth_google():
+    if not GOOGLE_ENABLED:
+        return redirect(url_for("login"))
+    return oauth.google.authorize_redirect(url_for("auth_callback", _external=True), prompt="select_account")
+
+
+@app.get("/auth/callback")
+def auth_callback():
+    if not GOOGLE_ENABLED:
+        return redirect(url_for("login"))
+    try:
+        info = oauth.google.authorize_access_token().get("userinfo") or {}
+    except Exception:
+        return redirect(url_for("login", error="google"))
+    if info.get("email_verified") and str(info.get("email", "")).lower() in ALLOWED_EMAILS:
+        session.clear()
+        session.permanent = True
+        session["ok"] = True
+        return redirect(url_for("index"))
+    return redirect(url_for("login", error="denied"))
 
 
 @app.post("/logout")
