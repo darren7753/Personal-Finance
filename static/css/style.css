@@ -559,16 +559,18 @@ aside .cs{margin:4px 0 16px}
   .cta:hover{transform:none;filter:none}
 }
 
-/* ----- Log out button (sidebar bottom on desktop, top bar on phones and tablets) ----- */
+/* ----- Log out button (sidebar bottom on desktop, top bar on phones and tablets): pink "leave" button with a door icon ----- */
 .side-foot{padding:0 4px;margin-top:auto}
-.logout{width:100%;padding:12px 16px;border-radius:16px;cursor:pointer;font:inherit;font-size:15px;font-weight:800;color:#4b5268;text-align:left;
-  background:linear-gradient(145deg,rgba(255,255,255,.55),rgba(255,255,255,.25));border:1px solid rgba(255,255,255,.7);
-  box-shadow:0 4px 12px rgba(40,50,120,.08),inset 0 1px 1px rgba(255,255,255,.9);transition:.15s}
-.logout:hover{color:var(--red);transform:translateY(-1px);box-shadow:0 8px 18px rgba(40,50,120,.14),inset 0 1px 1px #fff}
+.logout{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 16px;border-radius:16px;cursor:pointer;font:inherit;font-size:15px;font-weight:900;color:#c4153a;
+  background:linear-gradient(180deg,rgba(255,226,232,.95),rgba(255,190,205,.7));border:1px solid transparent;
+  box-shadow:0 8px 18px rgba(255,45,85,.2),inset 0 1px 1px rgba(255,255,255,.9),inset 0 -3px 6px rgba(255,45,85,.1);transition:.15s}
+.logout .logic{display:inline-flex}
+.logout:hover{transform:translateY(-2px);box-shadow:0 12px 24px rgba(255,45,85,.28),inset 0 1px 1px #fff,inset 0 -3px 6px rgba(255,45,85,.12)}
 .logout:active{transform:scale(.97)}
 @media(max-width:900px){
   .side-foot{order:2;margin:0;padding:0;flex:none}
-  .logout{width:auto;padding:9px 14px;border-radius:14px;font-size:13px;text-align:center}
+  .logout{width:auto;padding:9px 14px;gap:7px;border-radius:14px;font-size:13px}
+  .logout .fi{width:17px;height:17px}
   .logout:hover{transform:none}
 }
 @media(max-width:560px){

@@ -883,6 +883,7 @@ document.addEventListener('input', ev => {
 let rz, rzW = innerWidth; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (innerWidth !== rzW) { rzW = innerWidth; S && render(); } }, 150); });
 const NAV_ICON = {dash: 'moneyhand', wealth: 'diamond', spend: 'receipt', cycles: 'calclock'};   // shown only in the phone / tablet bottom bar
 document.querySelectorAll('.nav').forEach(b => { b.insertAdjacentHTML('afterbegin', `<span class="navic">${icon(NAV_ICON[b.dataset.t], 'filled', 22)}</span>`); b.onclick = () => { tab = b.dataset.t; render(); scrollTo(0, 0); }; });
+document.querySelectorAll('.logout').forEach(b => b.insertAdjacentHTML('afterbegin', `<span class="logic">${icon('signout', 'regular', 20)}</span>`));
 $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
 
 (async () => {
