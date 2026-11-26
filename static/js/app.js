@@ -420,7 +420,7 @@ async function loadQuotes(force) {
     quotes = fresh; quotesAt = Date.now();
     hs.forEach(h => { const q = quotes[h.ticker + '.JK']; if (q && q.price != null) h.lastValue = Math.round(h.lots * 100 * q.price); });
     const lp = livePrice(); if (lp && lp !== S.wealth.gold.lastAuto) { S.wealth.gold.lastAuto = lp; changed = true; }
-    if (changed) persist();
+    // prices are NOT saved: they are re-fetched on every load, and saving them made two open devices fight over the data (409 "changed elsewhere")
     const typing = /^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement || {}).tagName);
     if (tab === 'wealth' && !typing && (changed || !before || !Object.keys(before).length)) render();
     else { const el = document.getElementById('quoteTime'); if (el) el.textContent = new Date().toLocaleTimeString('en-GB'); }
@@ -970,6 +970,7 @@ $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
 
 (async () => {
   let saved = GUEST ? demoState() : await (await fetch('/api/state')).json();
+  const raw = JSON.stringify(saved);   // to see later whether opening the page changed anything that needs saving
   if (saved && saved.cycle) {   // migrate v1 data
     const o = saved, c = o.cycle;
     saved = {activeId: 'c1', basePrevSavings: c.savingsAfterSplit - Math.round(c.salary * c.savePct / 100),
@@ -984,10 +985,12 @@ $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
   S.cycles.forEach(c => { if (!c.env.daily.cap) c.env.daily.cap = 60000; });
   S.cycles.forEach(c => { c.env.daily.icon = 'calday'; c.env.date.icon = 'heart'; c.env.free.icon = 'balloon'; });
   S.cycles.forEach(c => { c.env.date.wallet = 'jago'; c.env.free.wallet = 'jago'; });
+  const dirty = JSON.stringify(S) !== raw;   // true only for a first-ever load or a data upgrade; a normal open never writes
   // keep the page hidden (only the spinner shows) until the data AND the prices are in, so nothing pops in or jumps afterwards;
   // prices get at most 4 seconds, then the page opens with the last known values
   await Promise.race([loadQuotes(), new Promise(r => setTimeout(r, 4000))]);
-  persist(); render();
+  if (dirty) persist();
+  render();
   document.documentElement.classList.remove('booting'); const bl = document.getElementById('boot'); if (bl) bl.remove();
   schedulePoll();
 })();
