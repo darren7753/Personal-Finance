@@ -561,8 +561,8 @@ function savingsPanel(k) {
   </table></div>`;
 }
 
-const CATS = ['Food & drink', 'Groceries', 'Transport', 'Entertainment', 'Date', 'Shopping', 'Health', 'Housing', 'Installments', 'Subscriptions', 'Bills & utilities', 'Investment', 'Other'];
-const CAT_ICON = {'Food & drink': 'food', 'Groceries': 'cart', 'Transport': 'car', 'Entertainment': 'movies', 'Date': 'heart', 'Shopping': 'bag', 'Health': 'heartpulse', 'Housing': 'home', 'Installments': 'card', 'Subscriptions': 'repeat', 'Bills & utilities': 'flash', 'Investment': 'trending', 'Other': 'box'};
+const CATS = ['Food & drink', 'Groceries', 'Transport', 'Entertainment', 'Date', 'Shopping', 'Health', 'Housing', 'Installments', 'Subscriptions', 'Bills & utilities', 'Laundry', 'Investment', 'Other'];
+const CAT_ICON = {'Food & drink': 'food', 'Groceries': 'cart', 'Transport': 'car', 'Entertainment': 'movies', 'Date': 'heart', 'Shopping': 'bag', 'Health': 'heartpulse', 'Housing': 'home', 'Installments': 'card', 'Subscriptions': 'repeat', 'Bills & utilities': 'flash', 'Laundry': 'washer', 'Investment': 'trending', 'Other': 'box'};
 const catLabel = n => `<span class="ic">${icon(CAT_ICON[n] || 'box', 'regular', 16)}</span> ${esc(n)}`;
 const catOpts = sel => CATS.map(n => `<option value="${n}" ${n === sel ? 'selected' : ''}>${n}</option>`).join('');
 const today = () => new Date().toLocaleDateString('sv-SE');
