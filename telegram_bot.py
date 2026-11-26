@@ -6,12 +6,14 @@ It is wired up by app.py (`configure`, plus the `/telegram/webhook` route); for 
 Only the Telegram user IDs in TELEGRAM_ALLOWED_IDS can use it.
 """
 import calendar
+import contextlib
 import hashlib
 import hmac
 import html
 import json
 import os
 import re
+import threading
 import urllib.error
 import urllib.request
 import zlib
@@ -29,11 +31,12 @@ class BotError(Exception):
     """A problem to show to the user as a normal message."""
 
 
-def configure(load, save, db, base):
-    """load/save are app.py's `_load_state` / `_save_state`; db is its `_db` (or None when running on local files)."""
+def configure(load, save, db, base, shared=None):
+    """load/save are app.py's `_load_state` / `_save_state`; db is its `_db` (or None when running on local files);
+    shared is a context manager that makes all database calls inside it use one connection."""
     cats = json.loads((base / "static" / "categories.json").read_text(encoding="utf-8"))["cats"]
     _cfg.update(
-        load=load, save=save, db=db, base=base, cats=cats,
+        load=load, save=save, db=db, base=base, cats=cats, shared=shared or contextlib.nullcontext,
         token=os.environ.get("TELEGRAM_BOT_TOKEN", "").strip(),
         allowed={int(x) for x in re.findall(r"\d+", os.environ.get("TELEGRAM_ALLOWED_IDS", ""))},
     )
@@ -545,13 +548,16 @@ def handle_update(u):
         if msg:   # the ID is shown so it can be added to TELEGRAM_ALLOWED_IDS
             api("sendMessage", chat_id=chat, text=f"This bot is private. Your Telegram ID is {uid}.")
         return
+    ack = None
+    if cb:   # tell Telegram the button was received while we do the work, instead of waiting for it first
+        ack = threading.Thread(target=api, args=("answerCallbackQuery",), kwargs={"callback_query_id": cb["id"]})
+        ack.start()
     try:
-        if cb:
-            api("answerCallbackQuery", callback_query_id=cb["id"])
-            ui = on_callback(chat, mid, cb["data"])
-        else:
-            ui = on_text(chat, msg["text"])
+        with _cfg["shared"]():   # one database connection for all the steps of this update
+            ui = on_callback(chat, mid, cb["data"]) if cb else on_text(chat, msg["text"])
     except BotError as e:
         ui = (esc(e), [[("Menu", "m")]])
     if ui:
         show(chat, mid, ui)
+    if ack:
+        ack.join()

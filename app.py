@@ -1,7 +1,9 @@
+import contextlib
 import hmac
 import json
 import os
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -147,11 +149,48 @@ def index():
 
 
 # ---------- storage: Postgres (Supabase) when DATABASE_URL is set, otherwise local files ----------
-def _db():
+_shared = threading.local()  # holds the one connection a Telegram update reuses (see shared_db)
+
+
+def _connect():
     import psycopg
 
     # prepare_threshold=None: required by Supabase's transaction pooler
     return psycopg.connect(DATABASE_URL, prepare_threshold=None, connect_timeout=10)
+
+
+class _KeepOpen:
+    """Stands in for a connection inside `with _db() as conn:`: commits at the end of the block but does not close,
+    so several steps of one Telegram update can share one connection (opening one is the slow part)."""
+
+    def __init__(self, conn):
+        self.conn = conn
+
+    def __enter__(self):
+        return self.conn
+
+    def __exit__(self, exc_type, exc, tb):
+        (self.conn.rollback if exc_type else self.conn.commit)()
+        return False
+
+
+@contextlib.contextmanager
+def shared_db():
+    """Within this block every `_db()` call reuses one connection. Without a database (local files) it does nothing."""
+    if not DATABASE_URL:
+        yield
+        return
+    real = _connect()
+    _shared.conn = _KeepOpen(real)
+    try:
+        yield
+    finally:
+        _shared.conn = None
+        real.close()
+
+
+def _db():
+    return getattr(_shared, "conn", None) or _connect()
 
 
 def _load_state():
@@ -282,7 +321,7 @@ def quotes():
 # ---------- Telegram bot (spending only; see telegram_bot.py) ----------
 import telegram_bot  # noqa: E402
 
-telegram_bot.configure(_load_state, _save_state, _db if DATABASE_URL else None, BASE)
+telegram_bot.configure(_load_state, _save_state, _db if DATABASE_URL else None, BASE, shared_db)
 
 
 @app.post("/telegram/webhook")
