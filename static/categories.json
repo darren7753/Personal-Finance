@@ -1,0 +1,4 @@
+{
+  "cats": ["Food & drink", "Groceries", "Transport", "Entertainment", "Date", "Shopping", "Health", "Housing", "Installments", "Subscriptions", "Bills & utilities", "Laundry", "Investment", "Other"],
+  "icons": {"Food & drink": "food", "Groceries": "cart", "Transport": "car", "Entertainment": "movies", "Date": "heart", "Shopping": "bag", "Health": "heartpulse", "Housing": "home", "Installments": "card", "Subscriptions": "repeat", "Bills & utilities": "flash", "Laundry": "washer", "Investment": "trending", "Other": "box"}
+}

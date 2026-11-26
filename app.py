@@ -65,7 +65,7 @@ if GOOGLE_ENABLED:
 
 @app.before_request
 def require_login():
-    if request.endpoint in ("static", "login", "auth_google", "auth_callback", "guest"):
+    if request.endpoint in ("static", "login", "auth_google", "auth_callback", "guest", "telegram_webhook"):  # the webhook checks Telegram's secret header itself
         return None
     if not SITE_PASSWORD and not GOOGLE_ENABLED:
         if ON_VERCEL:  # never serve finance data publicly without a login
@@ -277,6 +277,25 @@ def quotes():
                 out[s] = {**c, "stale": True}
     _save_quotes(cache, updated)
     return jsonify(out)
+
+
+# ---------- Telegram bot (spending only; see telegram_bot.py) ----------
+import telegram_bot  # noqa: E402
+
+telegram_bot.configure(_load_state, _save_state, _db if DATABASE_URL else None, BASE)
+
+
+@app.post("/telegram/webhook")
+def telegram_webhook():
+    """Telegram calls this for every message. Only calls carrying our secret header are accepted;
+    the bot itself then only answers the Telegram user IDs in TELEGRAM_ALLOWED_IDS."""
+    if not telegram_bot.verify(request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")):
+        return "", 403
+    try:
+        telegram_bot.handle_update(request.get_json(silent=True) or {})
+    except Exception:
+        app.logger.exception("telegram update failed")
+    return "", 200  # always 200, otherwise Telegram keeps resending the same update
 
 
 if __name__ == "__main__":

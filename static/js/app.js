@@ -633,8 +633,8 @@ function savingsPanel(k) {
   </table></div>`;
 }
 
-const CATS = ['Food & drink', 'Groceries', 'Transport', 'Entertainment', 'Date', 'Shopping', 'Health', 'Housing', 'Installments', 'Subscriptions', 'Bills & utilities', 'Laundry', 'Investment', 'Other'];
-const CAT_ICON = {'Food & drink': 'food', 'Groceries': 'cart', 'Transport': 'car', 'Entertainment': 'movies', 'Date': 'heart', 'Shopping': 'bag', 'Health': 'heartpulse', 'Housing': 'home', 'Installments': 'card', 'Subscriptions': 'repeat', 'Bills & utilities': 'flash', 'Laundry': 'washer', 'Investment': 'trending', 'Other': 'box'};
+// The category list lives in static/categories.json, shared with the Telegram bot so the two can never drift apart. It is filled in at start-up, before the first render.
+let CATS = [], CAT_ICON = {};
 const catLabel = n => `<span class="ic">${icon(CAT_ICON[n] || 'box', 'regular', 16)}</span> ${esc(n)}`;
 // alphabetical, "Other" always last, but the category already chosen stays at the top of the list
 const catOpts = sel => [...CATS].sort((a, b) => (b === sel) - (a === sel) || (a === 'Other') - (b === 'Other') || a.localeCompare(b)).map(n => `<option value="${n}" ${n === sel ? 'selected' : ''}>${n}</option>`).join('');
@@ -969,6 +969,7 @@ document.querySelectorAll('.logout').forEach(b => b.insertAdjacentHTML('afterbeg
 $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
 
 (async () => {
+  const catData = await (await fetch('/static/categories.json')).json(); CATS = catData.cats; CAT_ICON = catData.icons;
   let saved = GUEST ? demoState() : await (await fetch('/api/state')).json();
   const raw = JSON.stringify(saved);   // to see later whether opening the page changed anything that needs saving
   if (saved && saved.cycle) {   // migrate v1 data
