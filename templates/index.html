@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="booting">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body{% if guest %} data-guest="1"{% endif %}>
+<div id="boot" role="status" aria-label="Loading"><div class="spin"></div></div>
 <aside>
   <div class="brand">darren's <span>finance</span></div>
   <label>Pay cycle</label>
@@ -29,7 +30,7 @@
 <main><div class="wrap">
   {% if guest %}<div class="note"><span class="ni">ⓘ</span><div><b>Demo mode.</b> All numbers are random and nothing is saved. Refresh the page to get a new set of data.</div></div>{% endif %}
   <div class="top"><div><div class="greet" id="greet"></div><div class="titlerow"><h1 id="title"></h1><button id="eye" class="eye" type="button" onclick="toggleEye()"></button></div></div></div>
-  <div id="view"><div class="loader" role="status" aria-live="polite"><div class="spin"></div><div class="lt">Loading your finances</div></div></div>
+  <div id="view"></div>
 </div></main>
 
 <script src="{{ url_for('static', filename='js/icons.js') }}"></script>

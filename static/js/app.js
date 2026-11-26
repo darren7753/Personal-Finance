@@ -905,8 +905,12 @@ $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
   S.cycles.forEach(c => { if (!c.env.daily.cap) c.env.daily.cap = 60000; });
   S.cycles.forEach(c => { c.env.daily.icon = 'calday'; c.env.date.icon = 'heart'; c.env.free.icon = 'balloon'; });
   S.cycles.forEach(c => { c.env.date.wallet = 'jago'; c.env.free.wallet = 'jago'; });
+  // keep the page hidden (only the spinner shows) until the data AND the prices are in, so nothing pops in or jumps afterwards;
+  // prices get at most 4 seconds, then the page opens with the last known values
+  await Promise.race([loadQuotes(), new Promise(r => setTimeout(r, 4000))]);
   persist(); render();
-  loadQuotes(); schedulePoll();
+  document.documentElement.classList.remove('booting'); const bl = document.getElementById('boot'); if (bl) bl.remove();
+  schedulePoll();
 })();
 
 

@@ -579,9 +579,8 @@ aside .cs{margin:4px 0 16px}
   aside .cs{order:2;flex:1 1 100%;max-width:none;margin:0}
 }
 
-/* ===== loading screen (shown inside #view until the data arrives; render() replaces it) ===== */
-.loader{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;min-height:46vh;animation:loaderIn .4s ease both}
-.loader .spin{width:64px;height:64px;border-radius:50%;border:6px solid rgba(255,255,255,.7);border-top-color:#FFB020;border-right-color:#FFB020;box-shadow:0 10px 24px rgba(30,40,100,.16),inset 0 3px 6px rgba(255,255,255,.7);animation:loaderSpin 1s linear infinite}
-.loader .lt{font-size:15px;font-weight:800;color:var(--ink);opacity:.7}
+/* ===== loading screen: while html.booting, everything is hidden and only the spinner shows (app.js removes the class once data and prices are in) ===== */
+html.booting aside,html.booting main{visibility:hidden}
+#boot{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;pointer-events:none}
+#boot .spin{width:64px;height:64px;border-radius:50%;border:6px solid rgba(255,255,255,.7);border-top-color:#FFB020;border-right-color:#FFB020;box-shadow:0 10px 24px rgba(30,40,100,.16),inset 0 3px 6px rgba(255,255,255,.7);animation:loaderSpin 1s linear infinite}
 @keyframes loaderSpin{to{transform:rotate(360deg)}}
-@keyframes loaderIn{from{opacity:0}to{opacity:1}}
