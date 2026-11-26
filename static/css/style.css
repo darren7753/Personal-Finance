@@ -558,3 +558,21 @@ aside .cs{margin:4px 0 16px}
   .pocket:hover,.dnode:hover,.stat:hover,.day:hover,.nav:hover,.eye:hover,.pocket.mini.plain:hover{transform:none}
   .cta:hover{transform:none;filter:none}
 }
+
+/* ----- Log out button (sidebar bottom on desktop, top bar on phones and tablets) ----- */
+.side-foot{padding:0 4px;margin-top:auto}
+.logout{width:100%;padding:12px 16px;border-radius:16px;cursor:pointer;font:inherit;font-size:15px;font-weight:800;color:#4b5268;text-align:left;
+  background:linear-gradient(145deg,rgba(255,255,255,.55),rgba(255,255,255,.25));border:1px solid rgba(255,255,255,.7);
+  box-shadow:0 4px 12px rgba(40,50,120,.08),inset 0 1px 1px rgba(255,255,255,.9);transition:.15s}
+.logout:hover{color:var(--red);transform:translateY(-1px);box-shadow:0 8px 18px rgba(40,50,120,.14),inset 0 1px 1px #fff}
+.logout:active{transform:scale(.97)}
+@media(max-width:900px){
+  .side-foot{order:2;margin:0;padding:0;flex:none}
+  .logout{width:auto;padding:9px 14px;border-radius:14px;font-size:13px;text-align:center}
+  .logout:hover{transform:none}
+}
+@media(max-width:560px){
+  aside{flex-wrap:wrap;gap:8px}
+  .side-foot{order:1;margin-left:auto}
+  aside .cs{order:2;flex:1 1 100%;max-width:none;margin:0}
+}

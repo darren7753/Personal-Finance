@@ -125,7 +125,8 @@ def logout():
 
 @app.get("/")
 def index():
-    return render_template("index.html")
+    # the Log out button only makes sense when the site has a login (not in plain local use)
+    return render_template("index.html", can_logout=bool(SITE_PASSWORD or GOOGLE_ENABLED))
 
 
 # ---------- storage: Postgres (Supabase) when DATABASE_URL is set, otherwise local files ----------

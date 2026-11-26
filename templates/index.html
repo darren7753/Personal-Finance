@@ -20,6 +20,11 @@
     <button class="nav" data-t="spend">Spending</button>
     <button class="nav" data-t="cycles">Pay cycles</button>
   </nav>
+  {% if can_logout %}
+  <form class="side-foot" method="post" action="{{ url_for('logout') }}">
+    <button class="logout" type="submit">Log out</button>
+  </form>
+  {% endif %}
 </aside>
 <main><div class="wrap">
   <div class="top"><div><div class="greet" id="greet"></div><div class="titlerow"><h1 id="title"></h1><button id="eye" class="eye" type="button" onclick="toggleEye()"></button></div></div></div>
