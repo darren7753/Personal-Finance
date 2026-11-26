@@ -29,7 +29,7 @@
 <main><div class="wrap">
   {% if guest %}<div class="note"><span class="ni">ⓘ</span><div><b>Demo mode.</b> All numbers are random and nothing is saved. Refresh the page to get a new set of data.</div></div>{% endif %}
   <div class="top"><div><div class="greet" id="greet"></div><div class="titlerow"><h1 id="title"></h1><button id="eye" class="eye" type="button" onclick="toggleEye()"></button></div></div></div>
-  <div id="view"></div>
+  <div id="view"><div class="loader" role="status" aria-live="polite"><div class="spin"></div><div class="lt">Loading your finances</div></div></div>
 </div></main>
 
 <script src="{{ url_for('static', filename='js/icons.js') }}"></script>
