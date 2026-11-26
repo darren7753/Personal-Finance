@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sign in - Darren's Finance</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+  body{align-items:center;justify-content:center;padding:24px}
+  .login{width:100%;max-width:380px;padding:34px 30px;border-radius:28px;background:var(--glass);border:var(--glass-edge);
+    box-shadow:var(--glass-shadow);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;flex-direction:column;gap:16px}
+  .login h1{font-size:30px;margin:0}
+  .login p{color:var(--mute);font-size:14px}
+  .login input{width:100%;padding:13px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.8);background:rgba(255,255,255,.6);
+    font:inherit;font-size:16px;color:var(--ink)}
+  .login button{padding:13px 16px;border-radius:14px;border:0;cursor:pointer;font:inherit;font-size:16px;font-weight:900;color:#1b2033;
+    background:linear-gradient(145deg,#ffc24d,var(--orange-d));box-shadow:0 8px 18px rgba(245,154,0,.3),inset 0 1px 1px rgba(255,255,255,.7)}
+  .login .err{color:var(--red);font-size:14px;font-weight:800}
+</style>
+</head>
+<body>
+<form class="login" method="post" action="{{ url_for('login') }}">
+  <h1>Darren's <span style="color:var(--orange-d)">Finance</span></h1>
+  <p>Enter your password to continue.</p>
+  <input type="password" name="password" placeholder="Password" autocomplete="current-password" autofocus required>
+  {% if error %}<div class="err">Wrong password. Please try again.</div>{% endif %}
+  <button type="submit">Sign in</button>
+</form>
+</body>
+</html>

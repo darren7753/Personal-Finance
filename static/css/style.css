@@ -1,0 +1,560 @@
+/* ===== Liquid glass theme (translucent layers, specular edges, soft 3D depth) ===== */
+:root{
+  --ink:#1b2033; --mute:#6b7388; --line:rgba(30,40,100,.1);
+  --orange:#fdae2b; --orange-d:#f59a00; --blue:#d6eaff; --teal:#00acd7; --red:#ff2d55; --green:#0a9d58;
+  --glass:linear-gradient(145deg,rgba(255,255,255,.66),rgba(255,255,255,.32));
+  --glass-edge:1px solid rgba(255,255,255,.7);
+  --glass-shadow:0 12px 32px rgba(40,50,120,.14),0 2px 6px rgba(40,50,120,.07),inset 0 1px 1px rgba(255,255,255,.95),inset 0 -1px 1px rgba(255,255,255,.4);
+  --blur:blur(22px) saturate(170%);
+}
+*{box-sizing:border-box;margin:0}
+body{font-family:'Nunito',system-ui,sans-serif;color:var(--ink);font-weight:700;display:flex;min-height:100vh;min-height:100dvh;
+  background-color:#eef1f9;
+  background-image:
+    radial-gradient(900px 600px at 6% -5%,rgba(255,176,32,.60),transparent 62%),
+    radial-gradient(800px 600px at 96% 4%,rgba(0,174,213,.48),transparent 62%),
+    radial-gradient(1000px 700px at 75% 108%,rgba(0,96,175,.38),transparent 62%),
+    radial-gradient(700px 500px at -4% 92%,rgba(255,107,139,.38),transparent 62%);
+  background-attachment:fixed}
+
+/* ----- sidebar ----- */
+aside{width:260px;flex:none;background:linear-gradient(160deg,rgba(255,255,255,.62),rgba(255,255,255,.30));backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  border-right:1px solid rgba(255,255,255,.7);box-shadow:inset -1px 0 0 rgba(255,255,255,.5),8px 0 30px rgba(40,50,120,.08);
+  padding:26px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:6px}
+.brand{font-size:28px;font-weight:900;letter-spacing:-1px;padding:0 10px 18px;white-space:nowrap}
+.brand span{color:var(--orange-d)}
+aside label{font-size:11px;font-weight:900;color:var(--mute);text-transform:uppercase;letter-spacing:.6px;padding:0 10px}
+aside select{margin:4px 0 16px}
+.nav{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:16px;cursor:pointer;font-size:15px;font-weight:800;color:#4b5268;border:1px solid transparent;background:none;font-family:inherit;text-align:left;transition:.15s}
+.nav:hover{background:rgba(255,255,255,.45)}
+.nav.on{color:var(--ink);font-weight:900;background:linear-gradient(145deg,rgba(255,255,255,.85),rgba(255,236,190,.6));border:1px solid rgba(255,255,255,.9);
+  box-shadow:0 6px 16px rgba(245,154,0,.22),inset 0 1px 1px #fff,inset 0 -3px 6px rgba(245,154,0,.12)}
+.side-foot{margin-top:auto;padding:0 10px}
+main{flex:1;min-width:0}
+.wrap{max-width:1760px;margin:0 auto;padding:36px 32px 60px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:26px}
+.greet{color:#5a6178;font-size:13px;font-weight:800;letter-spacing:.4px;text-transform:uppercase}
+h1{font-size:40px;font-weight:900;letter-spacing:-.8px;margin-top:4px;text-shadow:0 1px 0 rgba(255,255,255,.7)}
+h2{font-size:21px;font-weight:900;margin:30px 0 14px;display:flex;justify-content:space-between;align-items:baseline}
+h2 .s{font-size:12px;font-weight:700}
+.grid{display:grid;gap:18px}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:1fr 1fr}.g21{grid-template-columns:3fr 2fr}
+.navs{display:contents}.navic{display:none}   /* desktop: the nav buttons sit directly in the sidebar. Phones and tablets: see the responsive section at the end */
+
+/* ----- glass cards ----- */
+.card{position:relative;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:var(--glass-edge);border-radius:28px;padding:22px;box-shadow:var(--glass-shadow)}
+.card::before{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(165deg,rgba(255,255,255,.35),rgba(255,255,255,0) 32%);pointer-events:none}
+.pocket{position:relative;overflow:hidden;border-radius:28px;padding:22px;background:var(--blue)}
+.pocket::after{content:"";position:absolute;left:-12%;top:-48%;width:124%;height:80%;border-radius:50%;background:radial-gradient(ellipse at 50% 100%,rgba(255,255,255,.42),rgba(255,255,255,0) 70%);pointer-events:none}
+.pocket .row{position:relative;display:flex;align-items:center;gap:14px}
+.pocket img,.logo{width:86px;height:48px;border-radius:16px;background:linear-gradient(180deg,#fff,#f1f4fb);padding:10px 9px;object-fit:contain;flex:none;
+  border:1px solid rgba(255,255,255,.9);box-shadow:0 5px 12px rgba(20,30,90,.18),inset 0 1px 1px #fff,inset 0 -2px 4px rgba(20,30,90,.06)}
+.pocket .name{font-size:19px;font-weight:900}.pocket .sub{opacity:.78;font-size:13px}
+.pocket .big-num{position:relative;margin-top:18px;font-size:32px;font-weight:900;letter-spacing:-.5px;text-shadow:0 2px 6px rgba(0,0,0,.12)}
+.ico{width:46px;height:46px;border-radius:15px;background:linear-gradient(145deg,rgba(255,255,255,.9),rgba(255,236,190,.7));border:1px solid rgba(255,255,255,.9);
+  box-shadow:0 4px 10px rgba(245,154,0,.2),inset 0 1px 1px #fff;display:grid;place-items:center;font-size:22px;flex:none}
+.row{display:flex;align-items:center;gap:12px}
+.t{font-size:15px;font-weight:800}.s{font-size:12px;color:var(--mute);font-weight:700}
+.a{margin-left:auto;font-weight:900;white-space:nowrap}
+.neg{color:var(--red)}.pos{color:var(--green)}
+.li{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.li:last-child{border:0}
+.bar{display:flex;height:18px;border-radius:10px;overflow:hidden;margin:6px 0 16px;background:rgba(30,40,100,.08)}
+.bar i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;color:#555}
+.legend b{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.prog{height:12px;background:rgba(30,40,100,.1);box-shadow:inset 0 1px 3px rgba(30,40,100,.15);border-radius:8px;overflow:hidden;margin:12px 0 8px}
+.prog i{display:block;height:100%;background:linear-gradient(180deg,#ffd06a,var(--orange-d));border-radius:8px}.prog i.over{background:linear-gradient(180deg,#ff6b87,var(--red))}
+
+/* ----- glossy buttons ----- */
+.cta{display:block;width:100%;background:linear-gradient(180deg,#ffd877,#ffb02b 55%,#f59a00);color:#3a2600;border:1px solid rgba(255,255,255,.75);border-radius:16px;padding:13px;font:inherit;font-weight:900;font-size:15px;cursor:pointer;margin-top:12px;
+  box-shadow:0 8px 18px rgba(245,154,0,.38),inset 0 1px 1px rgba(255,255,255,.95),inset 0 -4px 8px rgba(160,90,0,.22);transition:.15s}
+.cta:hover{transform:translateY(-1px);filter:brightness(1.04);box-shadow:0 12px 22px rgba(245,154,0,.42),inset 0 1px 1px #fff,inset 0 -4px 8px rgba(160,90,0,.22)}
+.cta:active{transform:translateY(1px);box-shadow:0 3px 8px rgba(245,154,0,.3),inset 0 2px 4px rgba(160,90,0,.3)}
+.cta.ghost{background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.55));color:var(--ink);box-shadow:0 6px 14px rgba(40,50,120,.12),inset 0 1px 1px #fff}
+.cta:disabled,.cta.ghost:disabled{background:rgba(30,40,100,.07);color:#a0a6b8;box-shadow:inset 0 1px 3px rgba(30,40,100,.1);cursor:not-allowed;transform:none;filter:none}
+.cta.inline{display:inline-block;width:auto;padding:12px 24px;margin:0;white-space:nowrap}
+.link{color:var(--mute);font-size:12px;border-bottom:1px solid;cursor:pointer;font-weight:800;background:none;border-top:0;border-left:0;border-right:0;font-family:inherit}
+.link:hover{color:var(--ink)}
+.danger{border:1px solid rgba(255,255,255,.85);background:linear-gradient(180deg,rgba(255,226,232,.95),rgba(255,190,205,.7));color:#c4153a;font:inherit;font-weight:900;padding:9px 18px;border-radius:14px;cursor:pointer;margin-left:auto;
+  box-shadow:0 5px 12px rgba(255,45,85,.2),inset 0 1px 1px #fff}
+.danger:disabled{background:rgba(30,40,100,.07);color:#a0a6b8;box-shadow:inset 0 1px 3px rgba(30,40,100,.1);cursor:not-allowed}
+.selbar .danger+.link{margin-left:0}
+
+/* ----- inset glass inputs ----- */
+input,select{border:1px solid rgba(255,255,255,.85);border-radius:14px;padding:0 14px;height:40px;font:inherit;font-weight:700;color:var(--ink);min-width:0;
+  background:linear-gradient(180deg,rgba(255,255,255,.45),rgba(255,255,255,.7));box-shadow:inset 0 2px 4px rgba(30,40,100,.1),0 1px 0 rgba(255,255,255,.8);transition:.15s}
+input:focus,select:focus{outline:0;box-shadow:inset 0 2px 4px rgba(30,40,100,.08),0 0 0 3px rgba(253,174,43,.45)}
+input:disabled{background:rgba(30,40,100,.06);color:#59607a}
+::placeholder{color:#9aa1b6}
+form.add{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+form.add input{flex:1}form.add input.n{flex:0 0 130px}
+form.add button{border:1px solid rgba(255,255,255,.75);background:linear-gradient(180deg,#ffd877,#ffb02b 55%,#f59a00);border-radius:14px;font:inherit;font-weight:900;padding:0 20px;cursor:pointer;height:40px;color:#3a2600;
+  box-shadow:0 6px 14px rgba(245,154,0,.35),inset 0 1px 1px #fff,inset 0 -3px 6px rgba(160,90,0,.2)}
+input.amt{width:140px;text-align:right;font-weight:900}
+.chk,input.chk{width:18px;height:18px;accent-color:#f59a00;cursor:pointer;flex:none;padding:0;box-shadow:none}
+
+/* ----- chips ----- */
+.chip{display:inline-block;background:linear-gradient(180deg,rgba(220,250,232,.95),rgba(190,240,210,.7));color:#0a8a4e;border:1px solid rgba(255,255,255,.85);box-shadow:inset 0 1px 1px #fff;border-radius:12px;padding:4px 12px;font-size:12px;font-weight:900}
+.cchip{background:linear-gradient(180deg,rgba(255,255,255,.85),rgba(255,255,255,.5));border:1px solid rgba(255,255,255,.9);box-shadow:0 2px 6px rgba(40,50,120,.08),inset 0 1px 1px #fff;border-radius:12px;padding:4px 11px;font-size:12px;font-weight:800;display:inline-block}
+.kv{display:flex;justify-content:space-between;padding:9px 0;font-size:15px}
+.kv.total{border-top:2px dashed rgba(255,255,255,.6);margin-top:6px;padding-top:14px;font-size:19px;font-weight:900}
+
+/* ----- tables ----- */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.5px;padding:8px 10px}
+td{padding:13px 10px;border-top:1px solid var(--line)}td.r,th.r{text-align:right}
+tr.cur td{background:rgba(255,200,80,.2)}
+.hide{display:none}
+table.crud td{vertical-align:middle}
+table.crud input,table.crud select{width:100%}
+table.crud input.chk{width:18px;padding:0}
+tr.newrow td{background:rgba(255,200,80,.2);border-top:0}
+tr.newrow td:first-child{border-radius:16px 0 0 16px}tr.newrow td:last-child{border-radius:0 16px 16px 0}
+table.crud td:last-child{white-space:nowrap}tr.editing td{background:rgba(70,150,255,.14)}
+
+/* ----- KPI boxes: solid bank colours with 3D gloss ----- */
+.g4{grid-template-columns:repeat(4,1fr)}
+.pocket.bca{background:linear-gradient(150deg,#3b97e8 0%,#0060af 52%,#00457f 100%);color:#fff;
+  box-shadow:0 18px 34px rgba(0,96,175,.40),0 4px 10px rgba(0,60,120,.2),inset 0 2px 2px rgba(255,255,255,.6),inset 0 -12px 20px rgba(0,25,70,.30)}
+.pocket.jago{background:linear-gradient(150deg,#ffdc82 0%,#ffb020 52%,#ee9100 100%);color:#2b1c00;
+  box-shadow:0 18px 34px rgba(245,154,0,.42),0 4px 10px rgba(180,100,0,.2),inset 0 2px 2px rgba(255,255,255,.7),inset 0 -12px 20px rgba(150,80,0,.25)}
+.pocket.gopay{background:linear-gradient(150deg,#5adcf6 0%,#00aed5 52%,#00829f 100%);color:#fff;
+  box-shadow:0 18px 34px rgba(0,174,213,.40),0 4px 10px rgba(0,100,130,.2),inset 0 2px 2px rgba(255,255,255,.6),inset 0 -12px 20px rgba(0,60,90,.28)}
+.pocket.jagolt{background:linear-gradient(150deg,rgba(255,248,230,.85),rgba(255,226,160,.55));border:1px solid rgba(255,200,90,.8);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  box-shadow:0 14px 28px rgba(245,154,0,.2),inset 0 2px 2px rgba(255,255,255,.95),inset 0 -8px 14px rgba(245,154,0,.12)}
+.pocket.jago .kv.total{border-top-color:rgba(0,0,0,.25)}
+.g4 .pocket{display:flex;flex-direction:column}
+.g4 .pocket .row{flex-direction:row;align-items:center;gap:14px}
+.g4 .pocket .name{white-space:nowrap}
+.g4 .pocket .big-num{margin-top:auto;padding-top:20px}
+.funnelcard{padding:26px 28px;overflow-x:auto}
+
+/* ----- diagram nodes: glossy glass tiles ----- */
+.diagram{position:relative}
+.diagram svg{position:absolute;left:0;top:0;overflow:visible}
+.diagram svg path,.diagram svg polygon{filter:drop-shadow(0 3px 3px rgba(30,40,100,.22))}
+.dnode{position:absolute;border-radius:18px;padding:12px 16px;display:flex;flex-direction:column;justify-content:flex-start;overflow:hidden;
+  box-shadow:0 10px 22px rgba(30,40,100,.20),0 2px 5px rgba(30,40,100,.1),inset 0 1px 1px rgba(255,255,255,.95),inset 0 -5px 10px rgba(0,0,0,.07)}
+.dnode::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.42),rgba(255,255,255,0) 52%);pointer-events:none}
+.dnode[style*="background:#fff;"]{background:linear-gradient(160deg,rgba(255,255,255,.78),rgba(255,255,255,.42)) !important;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.dnode .dt{position:relative;font-size:13px;font-weight:900;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.dnode.hl .dt{padding-right:54px}
+.dnode .da{position:relative;font-size:16px;font-weight:900;margin-top:4px}
+.dnode .ds{position:relative;font-size:11px;font-weight:700;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dnode.click{cursor:pointer}
+.dnode .mini{position:absolute;right:12px;top:12px;width:42px;height:20px;object-fit:contain;background:linear-gradient(180deg,#fff,#eef2fb);border-radius:7px;padding:2px 3px;box-shadow:0 2px 5px rgba(20,30,90,.15),inset 0 1px 1px #fff}
+
+/* ----- spending page ----- */
+.tabs{display:inline-flex;gap:4px;padding:5px;border-radius:22px;margin-bottom:14px;position:relative;
+  background:linear-gradient(145deg,rgba(255,255,255,.55),rgba(255,255,255,.28));backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.7);
+  box-shadow:0 8px 20px rgba(40,50,120,.1),inset 0 1px 1px rgba(255,255,255,.95)}
+.tab{border:1px solid transparent;background:none;font:inherit;font-weight:800;font-size:15px;padding:9px 22px;border-radius:17px;cursor:pointer;color:#4b5268;display:flex;flex-direction:column;align-items:flex-start;gap:0;transition:.15s}
+.tab:hover{background:rgba(255,255,255,.45)}
+.tab span{font-size:12px;font-weight:700;color:var(--mute)}
+.tab.on{color:var(--ink);font-weight:900;background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.65));border:1px solid #fff;
+  box-shadow:0 6px 14px rgba(40,50,120,.14),inset 0 1px 1px #fff,inset 0 -3px 0 var(--tc)}
+.stat{background:linear-gradient(160deg,rgba(255,255,255,.6),rgba(255,255,255,.3));border:1px solid rgba(255,255,255,.8);border-radius:20px;padding:14px 18px;box-shadow:0 4px 12px rgba(40,50,120,.07),inset 0 1px 1px #fff}
+.stat b{display:block;font-size:22px;font-weight:900;margin-top:2px}
+.stat .kv b{display:inline;font-size:15px;margin:0}
+.stat.good{background:linear-gradient(160deg,rgba(214,250,228,.85),rgba(190,240,210,.5))}.stat.bad{background:linear-gradient(160deg,rgba(255,226,232,.9),rgba(255,196,210,.5))}
+.stat input.big{border:0;background:transparent;box-shadow:none;font:inherit;font-size:22px;font-weight:900;padding:0;margin-top:2px;width:100%;height:auto;outline:0}
+.stat input.big:focus{box-shadow:none;border-bottom:2px solid var(--orange)}
+.catchips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.day{border:1px solid rgba(255,255,255,.8);border-radius:22px;margin-bottom:10px;background:linear-gradient(160deg,rgba(255,255,255,.6),rgba(255,255,255,.3));overflow:hidden;
+  box-shadow:0 6px 16px rgba(40,50,120,.09),inset 0 1px 1px #fff}
+.dayhead{display:grid;grid-template-columns:20px 22px 190px 1fr 190px;gap:14px;align-items:center;padding:14px 16px;cursor:pointer}
+.day.good .dayhead:hover,.day.bad .dayhead:hover{background:rgba(255,255,255,.4)}
+.chev{color:var(--mute);font-size:16px}
+.dbar{height:12px;background:rgba(30,40,100,.1);box-shadow:inset 0 1px 3px rgba(30,40,100,.15);border-radius:8px;overflow:hidden}.dbar i{display:block;height:100%;border-radius:8px}
+.day.good .dbar i{background:linear-gradient(180deg,#4fd68f,var(--green))}.day.bad .dbar i{background:linear-gradient(180deg,#ff6b87,var(--red))}
+.daybody{padding:0 16px 12px;border-top:1px solid var(--line);background:rgba(255,255,255,.25)}
+.selbar{display:flex;align-items:center;gap:16px;margin:4px 0 12px;padding:10px 16px;background:linear-gradient(160deg,rgba(255,255,255,.6),rgba(255,255,255,.3));border:1px solid rgba(255,255,255,.8);border-radius:18px;font-size:14px;box-shadow:inset 0 1px 1px #fff}
+
+/* ----- pay cycles ----- */
+.cyc{display:flex;flex-direction:column}.cycform{display:flex;flex-direction:column;gap:14px;flex:1}
+.intro{min-height:78px;margin-bottom:14px}
+label.s{display:block}
+
+/* ===== motion ===== */
+html{scroll-behavior:smooth}
+@keyframes rise{from{opacity:0;transform:translateY(20px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.82)}to{opacity:1;transform:none}}
+@keyframes swap{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes drop{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes unfold{from{opacity:0;clip-path:inset(0 0 100% 0);transform:translateY(-6px)}to{opacity:1;clip-path:inset(0 0 0 0);transform:none}}
+.enter-top>div{animation:drop .5s cubic-bezier(.2,.8,.2,1) backwards}
+.enter>*{animation:rise .65s cubic-bezier(.2,.8,.2,1) backwards}
+.enter>*:nth-child(1){animation-delay:.02s}.enter>*:nth-child(2){animation-delay:.09s}.enter>*:nth-child(3){animation-delay:.16s}
+.enter>*:nth-child(4){animation-delay:.23s}.enter>*:nth-child(5){animation-delay:.30s}.enter>*:nth-child(6){animation-delay:.37s}
+.enter>*:nth-child(7){animation-delay:.44s}.enter>*:nth-child(8){animation-delay:.51s}
+.enter .g4>.pocket{animation:pop .65s cubic-bezier(.2,.9,.3,1.15) backwards}
+.enter .g4>.pocket:nth-child(1){animation-delay:.08s}.enter .g4>.pocket:nth-child(2){animation-delay:.16s}
+.enter .g4>.pocket:nth-child(3){animation-delay:.24s}.enter .g4>.pocket:nth-child(4){animation-delay:.32s}
+.enter .dnode{animation:pop .6s cubic-bezier(.2,.9,.3,1.2) backwards;animation-delay:var(--d,0s)}
+.enter .diagram svg path{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .9s ease-out .35s forwards}
+.enter .diagram svg polygon{animation:fadeIn .4s ease 1.1s backwards}
+.enter table tr{animation:rise .45s cubic-bezier(.2,.8,.2,1) backwards}
+.enter table tr:nth-child(2){animation-delay:.12s}.enter table tr:nth-child(3){animation-delay:.16s}.enter table tr:nth-child(4){animation-delay:.20s}
+.enter table tr:nth-child(5){animation-delay:.24s}.enter table tr:nth-child(6){animation-delay:.28s}.enter table tr:nth-child(7){animation-delay:.32s}
+.enter table tr:nth-child(8){animation-delay:.36s}.enter table tr:nth-child(n+9){animation-delay:.40s}
+.swap{animation:swap .4s cubic-bezier(.2,.8,.2,1) backwards}
+.swap .stat{animation:pop .5s cubic-bezier(.2,.9,.3,1.15) backwards}
+.swap .stat:nth-child(2){animation-delay:.05s}.swap .stat:nth-child(3){animation-delay:.1s}.swap .stat:nth-child(4){animation-delay:.15s}
+.day{animation:rise .45s cubic-bezier(.2,.8,.2,1) backwards}
+.daybody.opening{animation:unfold .38s cubic-bezier(.2,.8,.2,1)}
+/* smooth hover / press feedback */
+.pocket,.dnode,.stat,.day,.cchip,.chip{transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease,background .25s ease}
+.pocket:hover{transform:translateY(-5px) scale(1.012)}
+.dnode:hover{transform:translateY(-3px) scale(1.03);z-index:3}
+.stat:hover{transform:translateY(-2px)}
+.day:hover{transform:translateY(-1px)}
+.nav,.tab,.cta,.link,.danger,input,select,.dayhead,tr td{transition:all .25s cubic-bezier(.2,.8,.2,1)}
+.nav:hover{transform:translateX(3px)}
+.cta:active,.danger:active,.tab:active{transform:scale(.97)}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important;scroll-behavior:auto !important}
+  .enter .diagram svg path{stroke-dasharray:none;stroke-dashoffset:0}
+}
+
+/* ===== wealth page ===== */
+.pocket.total{background:linear-gradient(150deg,#6677e0 0%,#2f3b9e 52%,#1b2370 100%);color:#fff;
+  box-shadow:0 18px 34px rgba(47,59,158,.40),0 4px 10px rgba(20,30,100,.2),inset 0 2px 2px rgba(255,255,255,.55),inset 0 -12px 20px rgba(10,15,70,.32)}
+.pocket.stockbit{background:linear-gradient(150deg,#6b7078 0%,#2d2d2d 52%,#151515 100%);color:#fff;
+  box-shadow:0 18px 34px rgba(30,30,30,.42),0 4px 10px rgba(0,0,0,.22),inset 0 2px 2px rgba(255,255,255,.45),inset 0 -12px 20px rgba(0,0,0,.4)}
+.pocket.gold{background:linear-gradient(150deg,#fff48a 0%,#ffe300 52%,#d9bc00 100%);color:#2b2500;
+  box-shadow:0 18px 34px rgba(230,200,0,.42),0 4px 10px rgba(130,110,0,.2),inset 0 2px 2px rgba(255,255,255,.75),inset 0 -12px 20px rgba(120,100,0,.25)}
+.wpanel .grid.g3{grid-template-columns:repeat(3,1fr)}
+
+.live{display:inline-flex;align-items:center;gap:6px;font-weight:900;color:var(--mute)}
+.live i{width:9px;height:9px;border-radius:50%;background:#b8bed0}
+.live.on{color:var(--green)}
+.live.on i{background:var(--green);box-shadow:0 0 0 0 rgba(10,157,88,.6);animation:livepulse 1.6s infinite}
+@keyframes livepulse{0%{box-shadow:0 0 0 0 rgba(10,157,88,.55)}70%{box-shadow:0 0 0 9px rgba(10,157,88,0)}100%{box-shadow:0 0 0 0 rgba(10,157,88,0)}}
+.flash-up{animation:flashup 1.5s ease-out}.flash-down{animation:flashdown 1.5s ease-out}
+@keyframes flashup{0%{background:rgba(10,157,88,.35);color:#0a7a46}100%{background:transparent}}
+@keyframes flashdown{0%{background:rgba(255,45,85,.3);color:#c4153a}100%{background:transparent}}
+
+.pocket.expense{background:linear-gradient(150deg,#ff8aa0 0%,#e8264d 52%,#a50f2c 100%);color:#fff;
+  box-shadow:0 18px 34px rgba(232,38,77,.38),0 4px 10px rgba(130,10,40,.2),inset 0 2px 2px rgba(255,255,255,.6),inset 0 -12px 20px rgba(90,0,20,.3)}
+.pocket.remain{background:linear-gradient(150deg,#63e6a8 0%,#12b76a 52%,#08804a 100%);color:#fff;
+  box-shadow:0 18px 34px rgba(18,183,106,.38),0 4px 10px rgba(0,100,60,.2),inset 0 2px 2px rgba(255,255,255,.6),inset 0 -12px 20px rgba(0,60,35,.28)}
+
+/* ===== translucent tinted tiles (take on the colour of whatever they sit on) ===== */
+.pocket .ico{background:linear-gradient(160deg,rgba(255,255,255,.72),rgba(255,255,255,.40)) !important;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.8);
+  box-shadow:0 5px 12px rgba(20,30,90,.14),inset 0 1px 1px rgba(255,255,255,.95),inset 0 -2px 4px rgba(20,30,90,.05)}
+.ico{background:linear-gradient(160deg,rgba(255,255,255,.7),rgba(255,236,190,.45))}
+.g4 .pocket .kpi-foot{margin-top:auto;padding-top:20px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.g4 .pocket .kpi-foot .big-num{margin:0;padding:0}
+.kpi-pct{position:relative;font-size:12px;font-weight:900;padding:4px 12px;border-radius:999px;white-space:nowrap;
+  background:linear-gradient(160deg,rgba(255,255,255,.55),rgba(255,255,255,.25));border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1px 1px rgba(255,255,255,.9)}
+
+/* ===== compact KPI-style boxes inside the budget tabs ===== */
+.pocket.mini{padding:14px 18px;border-radius:22px}
+.pocket.mini .row{gap:12px}
+.pocket.mini img.logo,.pocket.mini .ico{width:64px;height:36px;border-radius:12px;padding:6px 8px;font-size:18px}
+.pocket.mini .name{font-size:14px}
+.pocket.mini .sub{font-size:11px;opacity:.85}
+.pocket.mini::after{top:-72%;height:80%}
+.g4 .pocket.mini .big-num{margin-top:auto;padding-top:10px;font-size:24px;line-height:30px}
+.pocket.mini input.big{position:relative;border:0;background:transparent;box-shadow:none;font:inherit;font-size:24px;font-weight:900;color:inherit;padding:0;margin-top:auto;padding-top:10px;width:100%;height:auto;outline:0}
+.pocket.mini input.big:focus{box-shadow:none;border-bottom:2px solid rgba(255,255,255,.8);padding-bottom:0}
+/* secondary button keeps the Jago-tinted look (not plain white) */
+.cta.ghost{background:linear-gradient(180deg,#fff2d3,#ffdd9b 55%,#ffcf75);color:#3a2600;border:1px solid rgba(255,255,255,.85);
+  box-shadow:0 6px 14px rgba(245,154,0,.25),inset 0 1px 1px #fff,inset 0 -3px 6px rgba(190,110,0,.15)}
+.cta.ghost:hover{filter:brightness(1.04)}
+
+.tab{align-items:center;text-align:center}
+
+/* plain glass version of the compact boxes (same layout, neutral background) */
+.pocket.mini.plain{background:linear-gradient(160deg,rgba(255,255,255,.62),rgba(255,255,255,.30));color:var(--ink);border:1px solid rgba(255,255,255,.8);
+  box-shadow:0 4px 12px rgba(40,50,120,.07),inset 0 1px 1px #fff}
+.pocket.mini.plain::after{display:none}
+.pocket.mini.plain .sub{color:var(--mute);opacity:1}
+.pocket.mini.plain .big-num{text-shadow:none}
+.pocket.mini.plain .ico{background:linear-gradient(160deg,#fff,#eef2fb) !important}
+.pocket.mini.plain.good{background:linear-gradient(160deg,rgba(214,250,228,.85),rgba(190,240,210,.5))}
+.pocket.mini.plain.bad{background:linear-gradient(160deg,rgba(255,226,232,.9),rgba(255,196,210,.5))}
+.pocket.mini.plain.good .sub{color:#0a8a4e;font-weight:900}.pocket.mini.plain.bad .sub{color:var(--red);font-weight:900}
+.pocket.mini.plain input.big:focus{border-bottom-color:var(--orange)}
+.pocket.mini.plain:hover{transform:translateY(-2px)}
+
+.foldhead{cursor:pointer;user-select:none}
+.foldhead:hover .t{color:var(--orange-d)}
+.foldbody.opening{animation:unfold .38s cubic-bezier(.2,.8,.2,1)}
+
+/* ===== equal space above and below the content (content is vertically centred in every box) ===== */
+.stat{display:flex;flex-direction:column;justify-content:center}
+.pocket{display:flex;flex-direction:column;justify-content:center}
+.daybody{padding:10px 16px}
+.tab{justify-content:center}
+.ico{line-height:1}
+.pocket.mini img.logo,.pocket.mini .ico{display:grid;place-items:center}
+
+#tip{position:fixed;z-index:999;pointer-events:none;max-width:260px;padding:8px 12px;border-radius:12px;font-size:12px;line-height:16px;font-weight:800;color:#fff;
+  background:rgba(27,32,51,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 22px rgba(20,25,60,.3),inset 0 1px 1px rgba(255,255,255,.18);
+  opacity:0;transform:translateY(4px);transition:opacity .15s ease,transform .15s ease}
+#tip.show{opacity:1;transform:none}
+
+table.crud td.r{white-space:nowrap}
+
+.note{display:flex;align-items:center;gap:12px;padding:12px 18px;margin-bottom:14px;border-radius:20px;font-size:12px;line-height:17px;font-weight:700;color:#2f4670;
+  background:linear-gradient(160deg,rgba(214,234,255,.85),rgba(186,216,255,.50));border:1px solid rgba(150,195,250,.55);box-shadow:0 4px 12px rgba(40,50,120,.07),inset 0 1px 1px rgba(255,255,255,.9)}
+.note .ni{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:900;color:#0060af;background:linear-gradient(160deg,#fff,#dcecff);box-shadow:0 2px 5px rgba(20,30,90,.15),inset 0 1px 1px #fff}
+
+/* ===== Fluent icons ===== */
+svg.fi{display:block;flex:none}
+.ic{display:inline-flex;align-items:center;vertical-align:-3px}
+.cchip{display:inline-flex;align-items:center;gap:6px}
+.chev{display:inline-flex;align-items:center}
+.tab .ic{margin-right:2px}
+.ico.t-red{color:#c4153a}.ico.t-green{color:#0a8a4e}.ico.t-navy{color:#2f3b9e}.ico.t-cyan{color:#0089ab}.ico.t-orange{color:#c47a00}.ico.t-ink{color:var(--ink)}
+.catsel{display:flex;align-items:center;gap:8px;width:100%}
+.catsel select{flex:1;min-width:0}
+.ctile{flex:none;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;color:var(--ink);
+  background:linear-gradient(160deg,#fff,#eef2fb);border:1px solid rgba(255,255,255,.9);box-shadow:0 3px 8px rgba(20,30,90,.12),inset 0 1px 1px #fff}
+
+/* ===== eye (hide numbers) ===== */
+.titlerow{display:flex;align-items:center;gap:16px;margin-top:4px}
+.titlerow h1{margin-top:0}
+.eye{width:44px;height:44px;border-radius:15px;display:grid;place-items:center;cursor:pointer;color:var(--ink);
+  background:linear-gradient(160deg,rgba(255,255,255,.85),rgba(255,255,255,.45));border:1px solid rgba(255,255,255,.9);
+  box-shadow:0 6px 14px rgba(40,50,120,.14),inset 0 1px 1px #fff;transition:transform .2s,box-shadow .2s}
+.eye:hover{transform:translateY(-2px);box-shadow:0 10px 20px rgba(40,50,120,.18),inset 0 1px 1px #fff}
+.eye:active{transform:scale(.94)}
+.hide-nums input.money{-webkit-text-security:disc}
+.hide-nums input[type=number]{filter:blur(5px)}
+
+/* ===== custom glass dropdown ===== */
+.cs{position:relative;width:100%}
+aside .cs{margin:4px 0 16px}
+.cs-native{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;padding:0;border:0}
+.cs-btn{width:100%;height:40px;display:flex;align-items:center;gap:10px;padding:0 12px 0 12px;border-radius:14px;border:1px solid rgba(255,255,255,.85);
+  background:linear-gradient(180deg,rgba(255,255,255,.45),rgba(255,255,255,.7));box-shadow:inset 0 2px 4px rgba(30,40,100,.1),0 1px 0 rgba(255,255,255,.8);
+  font:inherit;font-weight:700;color:var(--ink);cursor:pointer;text-align:left;transition:box-shadow .2s,background .2s}
+.cs-btn:hover{background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(255,255,255,.85))}
+.cs-btn.open,.cs-btn:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(253,174,43,.45),inset 0 2px 4px rgba(30,40,100,.08)}
+.cs-label{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cs-ic{display:inline-flex;color:var(--ink)}
+.cs-chev{display:inline-flex;color:var(--mute);transition:transform .2s}
+.cs-btn.open .cs-chev{transform:rotate(180deg)}
+.cs-menu{position:fixed;z-index:1000;padding:8px;border-radius:20px;overflow:auto;
+  background:linear-gradient(160deg,rgba(255,255,255,.9),rgba(255,255,255,.66));backdrop-filter:blur(24px) saturate(170%);-webkit-backdrop-filter:blur(24px) saturate(170%);
+  border:1px solid rgba(255,255,255,.9);box-shadow:0 22px 46px rgba(30,40,110,.26),0 5px 12px rgba(30,40,110,.1),inset 0 1px 1px #fff;
+  opacity:0;transform:translateY(-6px) scale(.97);transform-origin:top;transition:opacity .16s ease,transform .18s cubic-bezier(.2,.8,.2,1)}
+.cs-menu.show{opacity:1;transform:none}
+.cs-opt{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:13px;font-weight:700;font-size:14px;color:var(--ink);cursor:pointer;outline:0;transition:background .12s}
+.cs-opt:hover,.cs-opt:focus{background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.6));box-shadow:0 3px 8px rgba(40,50,120,.1),inset 0 1px 1px #fff}
+.cs-opt.on{background:linear-gradient(180deg,#fff2d3,#ffdd9b);box-shadow:0 4px 10px rgba(245,154,0,.22),inset 0 1px 1px #fff}
+.cs-check{display:inline-flex;color:#c47a00}
+.cs-menu::-webkit-scrollbar{width:8px}.cs-menu::-webkit-scrollbar-thumb{background:rgba(30,40,100,.18);border-radius:8px}
+
+/* ===== one rule for every tinted (non-white) box, control and node: the border is the tint's own colour, never white ===== */
+:root{--edge-green:rgba(10,157,88,.5);--edge-red:rgba(255,45,85,.5);--edge-blue:rgba(0,96,175,.38);--edge-orange:rgba(235,140,0,.65)}
+.pocket.mini.plain.good,.stat.good{border:1px solid var(--edge-green);box-shadow:0 4px 12px rgba(40,50,120,.07),inset 0 0 0 1px var(--edge-green)}
+.pocket.mini.plain.bad,.stat.bad{border:1px solid var(--edge-red);box-shadow:0 4px 12px rgba(40,50,120,.07),inset 0 0 0 1px var(--edge-red)}
+.note{border:1px solid var(--edge-blue);box-shadow:0 4px 12px rgba(40,50,120,.07),inset 0 0 0 1px var(--edge-blue)}
+.pocket.jagolt{box-shadow:0 14px 28px rgba(245,154,0,.2),inset 0 0 0 1px rgba(255,176,32,.9),inset 0 -8px 14px rgba(245,154,0,.12)}
+.chip{border:1px solid var(--edge-green);box-shadow:none}
+.danger{border:1px solid var(--edge-red);box-shadow:0 5px 12px rgba(255,45,85,.2)}
+.danger:disabled{border-color:rgba(30,40,100,.12)}
+.cta,form.add button{border:1px solid var(--edge-orange);box-shadow:0 8px 18px rgba(245,154,0,.38),inset 0 -4px 8px rgba(160,90,0,.22)}
+.cta:hover{box-shadow:0 12px 22px rgba(245,154,0,.42),inset 0 -4px 8px rgba(160,90,0,.22)}
+.cta:active{box-shadow:0 3px 8px rgba(245,154,0,.3),inset 0 2px 4px rgba(160,90,0,.3)}
+.cta.ghost{border:1px solid var(--edge-orange);box-shadow:0 6px 14px rgba(245,154,0,.25),inset 0 -3px 6px rgba(190,110,0,.15)}
+.cta:disabled,.cta.ghost:disabled{border-color:rgba(30,40,100,.1);box-shadow:none}
+.nav.on{border:1px solid var(--edge-orange);box-shadow:0 6px 16px rgba(245,154,0,.22),inset 0 -3px 6px rgba(245,154,0,.12)}
+.cs-opt.on{box-shadow:0 4px 10px rgba(245,154,0,.22),inset 0 0 0 1px var(--edge-orange)}
+.dnode[data-ring]{box-shadow:0 10px 22px rgba(30,40,100,.20),0 2px 5px rgba(30,40,100,.1),inset 0 0 0 2px var(--ring)}
+.dnode[data-ring]::before{inset:2px;border-radius:16px}
+.dnode[data-ring=red]{--ring:rgba(255,45,85,.45)}.dnode[data-ring=green]{--ring:rgba(10,157,88,.42)}.dnode[data-ring=blue]{--ring:rgba(0,96,175,.32)}
+
+/* move-to-cash-saving: the button is the box (same size as its neighbours) */
+.move-btn{height:100%;margin:0;padding:14px 20px;border-radius:22px;font-size:17px;line-height:23px}
+.sub svg.fi,.ds svg.fi{display:inline-block;vertical-align:-2px}
+.pocket.mini{min-height:108px}
+
+/* ===== tinted boxes keep the full 3D depth: coloured ring + inner highlight + inner bottom shade + deeper drop shadow ===== */
+.dnode[data-ring]{box-shadow:0 12px 26px rgba(30,40,100,.24),0 3px 7px rgba(30,40,100,.12),inset 0 0 0 2px var(--ring),inset 0 -8px 12px var(--shade),inset 0 4px 6px -2px rgba(255,255,255,.65)}
+.dnode[data-ring]::before{background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(255,255,255,0) 55%)}
+.dnode[data-ring=red]{--shade:rgba(255,45,85,.20)}.dnode[data-ring=green]{--shade:rgba(10,157,88,.18)}.dnode[data-ring=blue]{--shade:rgba(0,96,175,.16)}
+.pocket.mini.plain.good{box-shadow:0 8px 18px rgba(10,157,88,.18),0 2px 5px rgba(40,50,120,.08),inset 0 0 0 1px var(--edge-green),inset 0 -8px 12px rgba(10,157,88,.14),inset 0 4px 6px -2px rgba(255,255,255,.65)}
+.pocket.mini.plain.bad{box-shadow:0 8px 18px rgba(255,45,85,.18),0 2px 5px rgba(40,50,120,.08),inset 0 0 0 1px var(--edge-red),inset 0 -8px 12px rgba(255,45,85,.14),inset 0 4px 6px -2px rgba(255,255,255,.65)}
+.note{box-shadow:0 8px 18px rgba(0,96,175,.14),0 2px 5px rgba(40,50,120,.08),inset 0 0 0 1px var(--edge-blue),inset 0 -8px 12px rgba(0,96,175,.12),inset 0 4px 6px -2px rgba(255,255,255,.65)}
+
+/* ===== light (tinted) boxes: thin border only, no thick ring ===== */
+.dnode[data-ring]{box-shadow:0 12px 26px rgba(30,40,100,.24),0 3px 7px rgba(30,40,100,.12),inset 0 0 0 1px var(--ring),inset 0 -8px 12px var(--shade),inset 0 4px 6px -2px rgba(255,255,255,.65)}
+.dnode[data-ring]::before{inset:1px;border-radius:17px}
+.dnode[data-ring=red]{--ring:rgba(255,45,85,.38)}.dnode[data-ring=green]{--ring:rgba(10,157,88,.36)}.dnode[data-ring=blue]{--ring:rgba(0,96,175,.28)}
+.pocket.mini.plain.good{box-shadow:0 8px 18px rgba(10,157,88,.18),0 2px 5px rgba(40,50,120,.08),inset 0 -8px 12px rgba(10,157,88,.14),inset 0 4px 6px -2px rgba(255,255,255,.65)}
+.pocket.mini.plain.bad{box-shadow:0 8px 18px rgba(255,45,85,.18),0 2px 5px rgba(40,50,120,.08),inset 0 -8px 12px rgba(255,45,85,.14),inset 0 4px 6px -2px rgba(255,255,255,.65)}
+.note{box-shadow:0 8px 18px rgba(0,96,175,.14),0 2px 5px rgba(40,50,120,.08),inset 0 -8px 12px rgba(0,96,175,.12),inset 0 4px 6px -2px rgba(255,255,255,.65)}
+.pocket.jagolt{box-shadow:0 14px 28px rgba(245,154,0,.2),inset 0 -8px 14px rgba(245,154,0,.12),inset 0 4px 6px -2px rgba(255,255,255,.65)}
+
+.price-amt{font-size:22px;line-height:28px;font-weight:900}
+.price-amt{font-size:12px;line-height:16px;font-weight:900;color:var(--ink)}
+.live{font-size:12px;line-height:16px}
+
+/* ===== light (tinted) boxes: no border at all, depth comes from the gloss, inner shade and shadow ===== */
+.dnode[data-ring]{box-shadow:0 12px 26px rgba(30,40,100,.24),0 3px 7px rgba(30,40,100,.12),inset 0 -8px 12px var(--shade),inset 0 4px 6px -2px rgba(255,255,255,.65)}
+.dnode[data-ring]::before{inset:0;border-radius:inherit}
+.pocket.mini.plain.good,.pocket.mini.plain.bad,.stat.good,.stat.bad,.note,.pocket.jagolt,.chip,.danger,.cta.ghost,.nav.on{border-color:transparent}
+.stat.good,.stat.bad{box-shadow:0 4px 12px rgba(40,50,120,.07)}
+.cs-opt.on{box-shadow:0 4px 10px rgba(245,154,0,.22)}
+
+/* =====================================================================================
+   RESPONSIVE LAYOUT
+   1461px and up : sidebar + 4-column KPI cards (laptop and desktop)
+   901 to 1460px : narrower sidebar, 2-column KPI cards (small laptops, iPad landscape)
+   900px and down: sidebar becomes a top bar, floating bottom navigation (iPad portrait, phones)
+   700px and down: tables turn into stacked cards, forms stack, 1-column KPI cards
+   Keep every responsive rule in this section so it wins the cascade.
+   ===================================================================================== */
+
+/* every table is wrapped in .tscroll by app.js, so a wide table scrolls inside its card instead of widening the page */
+.tscroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;max-width:100%;padding-bottom:14px;margin-bottom:-14px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* Stacked-card tables. app.js adds .cards to a table's .tscroll box on phones (all tables) and on tablets / small laptops
+   (tables with 7 or more columns), so each row becomes a card and each cell shows its column name above the value. */
+.tscroll.cards{overflow:visible;padding:0;margin:0}
+.tscroll.cards>table{min-width:0;display:block;width:100%}
+.tscroll.cards tbody{display:block;width:100%}
+.tscroll.cards tr.hr{display:none}
+.tscroll.cards tr{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px 14px;padding:14px 0;border-top:1px solid var(--line);position:relative}
+.tscroll.cards tr.hr+tr{border-top:0}
+.tscroll.cards tr.newrow,.tscroll.cards tr.editing,.tscroll.cards tr.cur{border-top:0;padding:14px;border-radius:18px;margin:6px 0}
+.tscroll.cards tr.newrow,.tscroll.cards tr.cur{background:rgba(255,200,80,.2)}
+.tscroll.cards tr.editing{background:rgba(70,150,255,.14)}
+.tscroll.cards tr.newrow td,.tscroll.cards tr.editing td,.tscroll.cards tr.cur td{background:none;border-radius:0}
+.tscroll.cards td{display:block;padding:0;border:0;min-width:0;width:auto !important;text-align:left !important;white-space:normal !important}
+.tscroll.cards td[data-label]::before{content:attr(data-label);display:block;margin-bottom:3px;font-size:11px;font-weight:800;color:var(--mute);text-transform:uppercase;letter-spacing:.4px}
+.tscroll.cards td:empty{display:none}
+.tscroll.cards td[colspan],.tscroll.cards td:last-child,.tscroll.cards td:has(>.cs),.tscroll.cards td:has(>input[type=date]){grid-column:1/-1}
+.daybody .tscroll.cards tr:first-child{border-top:0}
+.tscroll.cards td:last-child.r{text-align:right !important}
+.tscroll.cards td:has(>input.chk){position:absolute;top:14px;right:2px;width:auto !important}
+.tscroll.cards input.chk{width:20px;height:20px}
+.tscroll.cards .cta.inline{display:block;width:100%}
+
+/* stacked version of the salary diagram, used when the card is too narrow for the five-column drawing */
+.funnelcard{container-type:inline-size}
+.flow{display:flex;flex-direction:column;align-items:stretch}
+.flow .dnode{position:relative;left:auto;top:auto;width:100%;min-height:80px}
+.flow-one{display:flex;justify-content:center}
+.flow-one .dnode{max-width:400px}
+.flow-pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.flow-cols{display:grid;grid-template-columns:1fr;gap:20px 14px;align-items:start}
+.flow-chain{display:flex;flex-direction:column;min-width:0}
+.flow-arrow{display:flex;flex-direction:column;align-items:center;flex:none;height:30px;color:var(--c);filter:drop-shadow(0 3px 3px rgba(30,40,100,.22))}
+.flow-arrow::before{content:"";flex:1;width:3.5px;background:var(--c);border-radius:2px}
+.flow-arrow::after{content:"";border:7px solid transparent;border-top:11px solid var(--c);border-bottom:0}
+@container (min-width:420px){.flow-cols{grid-template-columns:1fr 1fr}.flow-cols .dnode{min-height:96px}}   /* equal heights so the rows line up across columns even when a title wraps */
+@container (min-width:640px){.flow-cols{grid-template-columns:repeat(4,1fr)}}
+@container (max-width:330px){.flow-pair{grid-template-columns:1fr}}
+
+/* ----- small laptops and iPad landscape ----- */
+@media(max-width:1460px){
+  .g4{grid-template-columns:1fr 1fr}
+}
+@media(max-width:1200px){
+  .g2,.g21{grid-template-columns:1fr}
+  .wpanel .grid.g3{grid-template-columns:1fr 1fr}
+}
+@media(max-width:1180px){
+  aside{width:220px;padding:22px 12px}
+  .brand{font-size:25px;padding-bottom:14px}
+  .wrap{padding:28px 24px 48px}
+}
+@media(max-width:1100px){
+  .tscroll>table{min-width:calc(var(--cols,6) * 100px)}
+}
+
+/* ----- iPad portrait and phones: top bar + floating bottom navigation ----- */
+@media(max-width:900px){
+  body{flex-direction:column;background-image:none;background-attachment:scroll}
+  body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background-image:
+      radial-gradient(900px 600px at 6% -5%,rgba(255,176,32,.60),transparent 62%),
+      radial-gradient(800px 600px at 96% 4%,rgba(0,174,213,.48),transparent 62%),
+      radial-gradient(1000px 700px at 75% 108%,rgba(0,96,175,.38),transparent 62%),
+      radial-gradient(700px 500px at -4% 92%,rgba(255,107,139,.38),transparent 62%)}
+  aside{width:auto;height:auto;position:static;flex-direction:row;align-items:center;gap:12px;
+    padding:calc(14px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left));
+    background:none;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+  .brand{padding:0;font-size:24px;letter-spacing:-.8px;flex:none}
+  aside label{display:none}
+  aside .cs{margin:0 0 0 auto;width:auto;flex:1 1 140px;min-width:0;max-width:240px}
+  aside select{margin:0}
+  .navs{display:flex;position:fixed;z-index:60;left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:520px;
+    bottom:calc(12px + env(safe-area-inset-bottom));gap:4px;padding:6px;border-radius:26px;
+    background:linear-gradient(160deg,rgba(255,255,255,.88),rgba(255,255,255,.60));backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+    border:1px solid rgba(255,255,255,.85);box-shadow:0 14px 34px rgba(40,50,120,.22),0 3px 8px rgba(40,50,120,.1),inset 0 1px 1px #fff}
+  .nav{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:3px;padding:9px 2px 8px;border-radius:20px;font-size:12px;line-height:1.1;text-align:center;white-space:nowrap}
+  .nav:hover{transform:none}
+  .navic{display:inline-flex}
+  .nav.on .navic{color:#c47a00}
+  .wrap{padding:14px max(16px,env(safe-area-inset-right)) calc(112px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+  .top{margin-bottom:18px}
+  h1{font-size:32px}
+  .titlerow{gap:12px}
+  .eye{width:40px;height:40px;border-radius:14px}
+  h2{flex-wrap:wrap;gap:4px 12px;font-size:19px;margin:24px 0 12px}
+  input,select{font-size:16px}               /* 16px stops iOS Safari from zooming into a field when it gets focus */
+  .grid{gap:14px}
+  .card{padding:18px;border-radius:24px}
+  .pocket{padding:18px;border-radius:24px}
+  .pocket.mini{padding:14px 16px;border-radius:20px;min-height:0}
+  .funnelcard{padding:18px 16px}
+  .tabs{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:none;white-space:nowrap;padding:9px 16px}
+  .card>.row{flex-wrap:wrap}
+  .card>.row>.s,.card>.row>.row{margin-left:0 !important;flex:1 1 100%;flex-wrap:wrap}   /* card header: title on one line, price / status / buttons on the next */
+  .selbar{flex-wrap:wrap;gap:8px 14px}
+  .daybody{padding:10px 12px}
+  .note{align-items:flex-start}
+  .live{white-space:nowrap}
+}
+
+/* ----- phones: one column, stacked table rows, stacked forms ----- */
+@media(max-width:700px){
+  .grid,.g4,.g3,.g2,.g21,.wpanel .grid.g3{grid-template-columns:1fr !important}
+  .pocket .big-num{font-size:30px}
+  .stat b{font-size:20px}
+  /* compact budget boxes on the Spending page: icon and name on the left, amount on the right */
+  .pocket.mini{flex-direction:row;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px}
+  .pocket.mini .row{flex:1 1 auto;min-width:0;gap:10px}
+  .pocket.mini .row>div:last-child{min-width:0}
+  .g4 .pocket.mini .name{white-space:normal;line-height:1.2}
+  .pocket.mini img.logo,.pocket.mini .ico{width:48px;height:34px;padding:5px 6px}
+  .g4 .pocket.mini .big-num{margin:0;padding:0;font-size:20px;line-height:26px;text-align:right;flex:none}
+  .pocket.mini input.big{margin:0;padding:0;width:auto;flex:0 1 130px;min-width:0;font-size:20px;text-align:right}
+  .move-btn{padding:12px 16px;font-size:15px;line-height:20px}
+  .grid.g3>.stat{flex-direction:row;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px}
+  .grid.g3>.stat b{margin:0;font-size:18px}
+  .grid.g3>.stat input.big{width:auto;flex:0 1 170px;min-width:0;margin:0;font-size:18px;text-align:right}
+  .dayhead{grid-template-columns:20px 22px 1fr auto;gap:8px 10px;padding:12px 14px}
+  .dayhead .dbar{grid-column:1/-1;grid-row:2}
+  form.add{flex-direction:column;align-items:stretch}
+  form.add input,form.add button{flex:none !important;width:100%}
+  .cta.inline{display:block;width:100%}
+}
+@media(max-width:364px){
+  aside{flex-wrap:wrap;gap:8px}
+  aside .cs{flex:1 1 100%;max-width:none;margin:0}
+  .nav{font-size:11px}
+}
+@media(max-width:420px){
+  .wrap{padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+  h1{font-size:28px}
+  .brand{font-size:21px}
+  .fgrid{grid-template-columns:1fr}
+}
+
+/* touch screens have no hover, so do not leave cards lifted after a tap */
+@media(hover:none){
+  .pocket:hover,.dnode:hover,.stat:hover,.day:hover,.nav:hover,.eye:hover,.pocket.mini.plain:hover{transform:none}
+  .cta:hover{transform:none;filter:none}
+}
