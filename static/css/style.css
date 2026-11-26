@@ -73,7 +73,7 @@ h2 .s{font-size:12px;font-weight:700}
 .cta:disabled,.cta.ghost:disabled{background:rgba(30,40,100,.07);color:#a0a6b8;box-shadow:inset 0 1px 3px rgba(30,40,100,.1);cursor:not-allowed;transform:none;filter:none}
 .cta.inline{display:inline-block;width:auto;padding:12px 24px;margin:0;white-space:nowrap}
 .link{color:var(--mute);font-size:12px;border-bottom:1px solid;cursor:pointer;font-weight:800;background:none;border-top:0;border-left:0;border-right:0;font-family:inherit}
-.link:hover{color:var(--ink)}
+.link:hover,.link:focus-visible{color:#e08a00}
 .danger{border:1px solid rgba(255,255,255,.85);background:linear-gradient(180deg,rgba(255,226,232,.95),rgba(255,190,205,.7));color:#c4153a;font:inherit;font-weight:900;padding:9px 18px;border-radius:14px;cursor:pointer;margin-left:auto;
   box-shadow:0 5px 12px rgba(255,45,85,.2),inset 0 1px 1px #fff}
 .danger:disabled{background:rgba(30,40,100,.07);color:#a0a6b8;box-shadow:inset 0 1px 3px rgba(30,40,100,.1);cursor:not-allowed}
@@ -162,7 +162,7 @@ table.crud td:last-child{white-space:nowrap}tr.editing td{background:rgba(70,150
 .day{border:1px solid rgba(255,255,255,.8);border-radius:22px;margin-bottom:10px;background:linear-gradient(160deg,rgba(255,255,255,.6),rgba(255,255,255,.3));overflow:hidden;
   box-shadow:0 6px 16px rgba(40,50,120,.09),inset 0 1px 1px #fff}
 .dayhead{display:grid;grid-template-columns:20px 22px 190px 1fr 190px;gap:14px;align-items:center;padding:14px 16px;cursor:pointer}
-.day.good .dayhead:hover,.day.bad .dayhead:hover{background:rgba(255,255,255,.4)}
+.day.good .dayhead:hover,.day.warn .dayhead:hover,.day.bad .dayhead:hover{background:rgba(255,255,255,.4)}
 .chev{color:var(--mute);font-size:16px}
 .dbar{height:12px;background:rgba(30,40,100,.1);box-shadow:inset 0 1px 3px rgba(30,40,100,.15);border-radius:8px;overflow:hidden}.dbar i{display:block;height:100%;border-radius:8px}
 .day.good .dbar i{background:linear-gradient(180deg,#4fd68f,var(--green))}.day.bad .dbar i{background:linear-gradient(180deg,#ff6b87,var(--red))}
@@ -431,7 +431,7 @@ aside .cs{margin:4px 0 16px}
 .tscroll.cards td{display:block;padding:0;border:0;min-width:0;width:auto !important;text-align:left !important;white-space:normal !important}
 .tscroll.cards td[data-label]::before{content:attr(data-label);display:block;margin-bottom:3px;font-size:11px;font-weight:800;color:var(--mute);text-transform:uppercase;letter-spacing:.4px}
 .tscroll.cards td:empty{display:none}
-.tscroll.cards td[colspan],.tscroll.cards td:last-child,.tscroll.cards td:has(>.cs),.tscroll.cards td:has(>input[type=date]){grid-column:1/-1}
+.tscroll.cards td[colspan],.tscroll.cards td:last-child,.tscroll.cards td:has(>.cs),.tscroll.cards td:has(>.dp){grid-column:1/-1}
 .daybody .tscroll.cards tr:first-child{border-top:0}
 .tscroll.cards td:last-child.r{text-align:right !important}
 .tscroll.cards td:has(>input.chk){position:absolute;top:14px;right:2px;width:auto !important}
@@ -439,21 +439,6 @@ aside .cs{margin:4px 0 16px}
 .tscroll.cards .cta.inline{display:block;width:100%}
 
 /* stacked version of the salary diagram, used when the card is too narrow for the five-column drawing */
-.funnelcard{container-type:inline-size}
-.flow{display:flex;flex-direction:column;align-items:stretch}
-.flow .dnode{position:relative;left:auto;top:auto;width:100%;min-height:80px}
-.flow-one{display:flex;justify-content:center}
-.flow-one .dnode{max-width:400px}
-.flow-pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.flow-cols{display:grid;grid-template-columns:1fr;gap:20px 14px;align-items:start}
-.flow-chain{display:flex;flex-direction:column;min-width:0}
-.flow-arrow{display:flex;flex-direction:column;align-items:center;flex:none;height:30px;color:var(--c);filter:drop-shadow(0 3px 3px rgba(30,40,100,.22))}
-.flow-arrow::before{content:"";flex:1;width:3.5px;background:var(--c);border-radius:2px}
-.flow-arrow::after{content:"";border:7px solid transparent;border-top:11px solid var(--c);border-bottom:0}
-@container (min-width:420px){.flow-cols{grid-template-columns:1fr 1fr}.flow-cols .dnode{min-height:96px}}   /* equal heights so the rows line up across columns even when a title wraps */
-@container (min-width:640px){.flow-cols{grid-template-columns:repeat(4,1fr)}}
-@container (max-width:330px){.flow-pair{grid-template-columns:1fr}}
-
 /* ----- small laptops and iPad landscape ----- */
 @media(max-width:1460px){
   .g4{grid-template-columns:1fr 1fr}
@@ -585,3 +570,72 @@ html.booting aside,html.booting main{visibility:hidden}
 #boot .lt{font-size:15px;font-weight:800;color:var(--ink);opacity:.7}
 #boot .spin{width:64px;height:64px;border-radius:50%;border:6px solid rgba(255,255,255,.7);border-top-color:#FFB020;border-right-color:#FFB020;box-shadow:0 10px 24px rgba(30,40,100,.16),inset 0 3px 6px rgba(255,255,255,.7);animation:loaderSpin 1s linear infinite}
 @keyframes loaderSpin{to{transform:rotate(360deg)}}
+
+/* chips that hold a brand logo: exactly the size of the old text chip (79 x 26 CSS px, measured); the logo is scaled down to fit inside */
+.cchip.logochip{display:inline-flex;align-items:center;justify-content:center;width:79px;height:26px;padding:0;box-sizing:border-box}
+.cchip.logochip img{display:block;width:auto;max-width:64px}
+.cchip.logochip img[alt=Treasury]{height:13px}
+.cchip.logochip img[alt=Stockbit]{height:17px}
+
+/* icon buttons for Edit (pencil) and Delete (trash): grey until hovered, then orange or pink-red */
+.ib{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:12px;border:0;background:transparent;color:var(--mute);cursor:pointer;padding:0;vertical-align:middle;transition:color .2s ease,background .2s ease,transform .2s ease}
+.ib+.ib{margin-left:4px}
+.ib svg{display:block}
+.ib.edit:hover,.ib.edit:focus-visible{color:#e08a00;background:rgba(255,176,32,.18)}
+.ib.del:hover,.ib.del:focus-visible{color:#c4153a;background:rgba(255,45,85,.13)}
+.ib:active{transform:scale(.92)}
+.danger{display:inline-flex;align-items:center;gap:8px}
+.danger svg{flex:none}
+
+.ib.sm{width:26px;height:26px;border-radius:9px}
+
+/* ===== custom date picker (same glass look as the category dropdown) ===== */
+.dp .cs-btn{padding:0 12px}
+.dp-ic{color:var(--ink)}
+.dp .cs-btn{gap:10px}
+.dp-menu{padding:12px 12px 8px}
+.dp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.dp-title{font-weight:900;font-size:15px;color:var(--ink)}
+.dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.dp-wd span{text-align:center;font-size:11px;font-weight:800;color:var(--mute);padding:4px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+.dp-day{height:36px;border:0;border-radius:12px;background:transparent;font:inherit;font-weight:700;font-size:14px;color:var(--ink);cursor:pointer;outline:0;transition:background .12s,color .12s}
+.dp-day.out{color:#a9afc2;font-weight:600}
+.dp-day:hover,.dp-day:focus{background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.6));box-shadow:0 3px 8px rgba(40,50,120,.1),inset 0 1px 1px #fff}
+.dp-day.today{box-shadow:inset 0 0 0 2px rgba(255,176,32,.7)}
+.dp-day.on{background:linear-gradient(180deg,#fff2d3,#ffdd9b);box-shadow:0 4px 10px rgba(245,154,0,.22),inset 0 1px 1px #fff;color:#8a5200;font-weight:900}
+.dp-foot{display:flex;justify-content:center;padding:8px 0 4px}
+
+/* daily budget day colours: green below 90% of the cap, yellow from 90% up to the cap, red only when over the cap */
+.day.warn .dbar i{background:linear-gradient(180deg,#ffd95a,#f5b400)}
+.amber{color:#b87700}
+
+/* ===== our own dialogs (confirm / message), same glass look as the dropdowns ===== */
+.mdl-back{position:fixed;inset:0;z-index:5000;display:grid;place-items:center;padding:20px;background:rgba(30,40,100,.28);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;transition:opacity .16s ease}
+.mdl-back.show{opacity:1}
+.mdl{width:min(420px,100%);padding:28px 28px 24px;border-radius:28px;text-align:center;
+  background:linear-gradient(160deg,rgba(255,255,255,.96),rgba(255,255,255,.78));backdrop-filter:blur(24px) saturate(170%);-webkit-backdrop-filter:blur(24px) saturate(170%);
+  border:1px solid rgba(255,255,255,.9);box-shadow:0 30px 60px rgba(30,40,110,.32),0 6px 14px rgba(30,40,110,.12),inset 0 1px 1px #fff;
+  transform:translateY(10px) scale(.96);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.mdl-back.show .mdl{transform:none}
+.mdl-ic{width:56px;height:56px;margin:0 auto 14px;border-radius:18px;display:grid;place-items:center;color:#c47a00;background:linear-gradient(180deg,#fff2d3,#ffdd9b);box-shadow:0 6px 14px rgba(245,154,0,.22),inset 0 1px 1px #fff}
+.mdl-ic.red{color:#c4153a;background:linear-gradient(180deg,rgba(255,226,232,.98),rgba(255,190,205,.8));box-shadow:0 6px 14px rgba(255,45,85,.2),inset 0 1px 1px #fff}
+.mdl-t{font-size:19px;font-weight:900;color:var(--ink);line-height:1.3}
+.mdl-x{margin-top:8px;font-size:14px;font-weight:700;color:var(--mute);line-height:1.5}
+.mdl-btns{display:flex;gap:12px;justify-content:center;margin-top:22px}
+.mdl-btns button{flex:1;min-width:0;height:46px;padding:0 18px;border-radius:15px;font:inherit;font-weight:900;font-size:15px;cursor:pointer;margin:0;width:auto}
+.mdl-cancel{border:1px solid rgba(255,255,255,.9);background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(255,255,255,.55));color:var(--ink);box-shadow:0 4px 10px rgba(40,50,120,.1),inset 0 1px 1px #fff}
+.mdl-cancel:hover{color:#e08a00}
+.mdl-btns button:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(253,174,43,.55)}
+
+/* demo banner: more room before the page header */
+.wrap>.note{margin-bottom:30px}
+
+.mdl-btns button{display:flex;align-items:center;justify-content:center;text-align:center}
+
+/* hover for the pink (danger) buttons: Delete selected, and the confirm button in our dialogs */
+.danger{transition:transform .2s ease,box-shadow .2s ease,background .2s ease,color .2s ease}
+.danger:not(:disabled):hover{transform:translateY(-2px);background:linear-gradient(180deg,rgba(255,205,217,1),rgba(255,160,182,.9));color:#a50f30;box-shadow:0 10px 20px rgba(255,45,85,.3)}
+.danger:not(:disabled):active{transform:translateY(0) scale(.97);box-shadow:0 3px 8px rgba(255,45,85,.25)}
+.mdl-cancel{transition:transform .2s ease,box-shadow .2s ease,color .2s ease}
+.mdl-cancel:hover{transform:translateY(-2px);box-shadow:0 8px 16px rgba(40,50,120,.16),inset 0 1px 1px #fff}
+.mdl-cancel:active{transform:translateY(0) scale(.97)}

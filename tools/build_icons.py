@@ -8,7 +8,7 @@ BASE = 'https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/a
 ICONS = {  # key -> Fluent folder name
     'food': 'Food', 'cart': 'Cart', 'car': 'Vehicle Car', 'movies': 'Movies and TV', 'heart': 'Heart', 'bag': 'Shopping Bag',
     'heartpulse': 'Heart Pulse', 'home': 'Home', 'card': 'Wallet Credit Card', 'repeat': 'Arrow Repeat All', 'flash': 'Flash',
-    'trending': 'Arrow Trending', 'washer': 'Washer', 'box': 'Box', 'calday': 'Calendar Day', 'balloon': 'Balloon', 'savings': 'Savings',
+    'trending': 'Arrow Trending', 'washer': 'Washer', 'edit': 'Edit', 'trash': 'Delete', 'eraser': 'Eraser', 'chevleft': 'Chevron Left', 'calendar': 'Calendar', 'save': 'Save', 'undo': 'Arrow Undo', 'refresh': 'Arrow Clockwise', 'open': 'Open', 'dismiss': 'Dismiss', 'box': 'Box', 'calday': 'Calendar Day', 'balloon': 'Balloon', 'savings': 'Savings',
     'receipt': 'Receipt', 'moneyhand': 'Money Hand', 'diamond': 'Diamond', 'calclock': 'Calendar Clock',
     'databar': 'Data Bar Vertical', 'calculator': 'Calculator', 'check': 'Checkmark Circle', 'warning': 'Warning',
     'chevright': 'Chevron Right', 'chevdown': 'Chevron Down', 'eye': 'Eye', 'eyeoff': 'Eye Off', 'signout': 'Sign Out',
@@ -39,6 +39,14 @@ for key, folder in ICONS.items():
         paths = re.findall(r'<path[^>]*\sd="([^"]+)"[^>]*/?>', svg)
         table[key][style] = {'vb': vb, 'd': paths}
 
+# hand-drawn icons (stroke based, not from Fluent): static/icons/custom/<key>_<style>.svg, e.g. eye_closed_regular.svg -> key 'eyeclosed'
+CUSTOM = {'eyeclosed': 'eye_closed'}
+for key, base in CUSTOM.items():
+    f = os.path.join(out_dir, 'custom', base + '_regular.svg')
+    if os.path.exists(f):
+        svg = open(f, encoding='utf-8').read()
+        table[key] = {'regular': {'vb': re.search(r'viewBox="([^"]+)"', svg).group(1), 'raw': ''.join(re.findall(r'<path[^>]*/>', svg)).replace('#212121', 'currentColor').replace('<path ', '<path fill=\"none\" ')}}
+
 lic = fetch('https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/LICENSE')
 open(os.path.join(out_dir, 'LICENSE-fluent-icons.txt'), 'w', encoding='utf-8').write(
     'Fluent UI System Icons by Microsoft: https://github.com/microsoft/fluentui-system-icons\nLicensed under the MIT License.\n\n' + (lic or '(see the repository for the license text)'))
@@ -46,6 +54,6 @@ open(os.path.join(out_dir, 'LICENSE-fluent-icons.txt'), 'w', encoding='utf-8').w
 js = ['// Generated from Fluent UI System Icons (Microsoft, MIT license). Source files are in static/icons/.',
       'const FI = ' + json.dumps(table, separators=(',', ':')) + ';',
       "const icon = (name, style = 'regular', size = 18) => { const i = (FI[name] || {})[style]; if (!i) return '';",
-      "  return `<svg class=\"fi\" width=\"${size}\" height=\"${size}\" viewBox=\"${i.vb}\" fill=\"currentColor\" aria-hidden=\"true\">${i.d.map(d => `<path d=\"${d}\"/>`).join('')}</svg>`; };", '']
+      "  return `<svg class=\"fi\" width=\"${size}\" height=\"${size}\" viewBox=\"${i.vb}\" fill=\"currentColor\" aria-hidden=\"true\">${i.raw || i.d.map(d => `<path d=\"${d}\"/>`).join('')}</svg>`; };", '']
 open(os.path.join(root, 'static', 'js', 'icons.js'), 'w', encoding='utf-8').write('\n'.join(js))
 print('icons:', len(table), '| missing:', missing, '| license saved:', bool(lic))

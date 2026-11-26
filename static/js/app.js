@@ -64,12 +64,40 @@ function calcAll() {
 }
 const K = () => calcAll().find(k => k.c.id === S.activeId);
 
+// ---------- our own confirm / message dialogs (never the browser's pop-ups) ----------
+// ask({title, text, ok, danger, icon}) resolves true/false; notify() is the same with a single button.
+let mdlOpen = null;
+function ask(o) {
+  return new Promise(res => {
+    if (mdlOpen) mdlOpen(false);
+    const back = document.createElement('div'); back.className = 'mdl-back';
+    const tone = o.danger ? 'danger' : 'cta', ic = o.icon || (o.danger ? 'trash' : 'warning');
+    back.innerHTML = `<div class="mdl" role="alertdialog" aria-modal="true" aria-labelledby="mdlT">
+      <div class="mdl-ic ${o.danger ? 'red' : ''}">${icon(ic, 'regular', 26)}</div>
+      <div class="mdl-t" id="mdlT">${esc(o.title)}</div>${o.text ? `<div class="mdl-x">${esc(o.text)}</div>` : ''}
+      <div class="mdl-btns">${o.single ? '' : '<button type="button" class="mdl-cancel">Cancel</button>'}<button type="button" class="mdl-ok ${tone}">${esc(o.ok || 'OK')}</button></div></div>`;
+    document.body.appendChild(back);
+    const okB = back.querySelector('.mdl-ok'), cancelB = back.querySelector('.mdl-cancel');
+    const done = v => { document.removeEventListener('keydown', key, true); mdlOpen = null; back.classList.remove('show'); setTimeout(() => back.remove(), 160); res(v); };
+    const key = e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(!!o.single); }
+      else if (e.key === 'Tab') { const b = [...back.querySelectorAll('button')], at = b.indexOf(document.activeElement); e.preventDefault(); b[(at + (e.shiftKey ? b.length - 1 : 1)) % b.length].focus(); }
+    };
+    mdlOpen = done; document.addEventListener('keydown', key, true);
+    okB.onclick = () => done(true); if (cancelB) cancelB.onclick = () => done(false);
+    back.addEventListener('mousedown', e => { if (e.target === back) done(!!o.single); });
+    requestAnimationFrame(() => back.classList.add('show'));
+    (o.danger && cancelB ? cancelB : okB).focus();   // a delete never has its confirm button focused by default
+  });
+}
+const notify = o => ask({...o, single: true, icon: o.icon || 'warning'});
+
 let saveChain = Promise.resolve();
 function persist() {
   if (GUEST) return Promise.resolve();   // demo mode: nothing is ever saved
   saveChain = saveChain.then(async () => {
     const r = await fetch('/api/state', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(S)});
-    if (r.status === 409) { alert('Your data was changed in another tab or window. The page will reload to show the latest data.'); location.reload(); return; }
+    if (r.status === 409) { await notify({title: 'Your data changed elsewhere', text: 'Your data was changed in another tab or window. The page will reload to show the latest data.', ok: 'Reload'}); location.reload(); return; }
     const res = await r.json(); S._rev = res.rev;
   }).catch(() => {});
   return saveChain;
@@ -98,6 +126,7 @@ function render() {
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function decorate(entering) {
+  enhanceDates();
   enhanceSelects();   // before wrapTables: the custom dropdowns change cell widths, and wrapTables measures whether each table fits
   wrapTables();
   fitDiagram();
@@ -134,7 +163,7 @@ let hideNums = localStorage.getItem('dfHide') === '1';
 const maskText = t => t.replace(/IDR [\d,]+/g, 'IDR ••••••').replace(/\d+(?:\.\d+)?%/g, '•••%').replace(/[\d.,]+ (g|shares)\b/g, '•••• $1');
 function applyHide() {
   document.body.classList.toggle('hide-nums', hideNums);
-  const eye = $('#eye'); if (eye) { eye.innerHTML = icon(hideNums ? 'eyeoff' : 'eye', 'regular', 24); eye.setAttribute('aria-label', hideNums ? 'Show numbers' : 'Hide numbers'); }
+  const eye = $('#eye'); if (eye) { eye.innerHTML = icon(hideNums ? 'eyeclosed' : 'eye', 'regular', 24); eye.setAttribute('aria-label', hideNums ? 'Show numbers' : 'Hide numbers'); }
   if (!hideNums) return;
   const w = document.createTreeWalker($('#view'), NodeFilter.SHOW_TEXT); let n;
   while ((n = w.nextNode())) { const m = maskText(n.nodeValue); if (m !== n.nodeValue) n.nodeValue = m; }
@@ -187,6 +216,56 @@ function enhanceSelects() {
   });
   csSyncAll();
 }
+// ---------- custom glass date picker (replaces the browser's own calendar; the real <input type="date"> stays hidden inside, so forms still work) ----------
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const pad2 = n => String(n).padStart(2, '0'), isoOf = (y, m, d) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
+function dpSync(inp) {
+  const btn = inp.parentElement && inp.parentElement.querySelector('.cs-btn'); if (!btn) return;
+  btn.innerHTML = `<span class="cs-ic dp-ic">${icon('calendar', 'regular', 18)}</span><span class="cs-label">${inp.value ? esc(fmtDate(inp.value)) : 'Select date'}</span><span class="cs-chev">${icon('chevdown', 'regular', 16)}</span>`;
+}
+function dpOpen(inp, btn) {
+  csClose(); csOpenBtn = btn; btn.classList.add('open');
+  const sel0 = inp.value || today(), sy = Number(sel0.slice(0, 4)), sm = Number(sel0.slice(5, 7));
+  let vy = sy, vm = sm - 1;
+  const m = document.createElement('div'); m.className = 'cs-menu dp-menu'; csMenu = m; document.body.appendChild(m);
+  const draw = () => {
+    const first = new Date(vy, vm, 1), lead = (first.getDay() + 6) % 7, t = today(), cur = inp.value;
+    let cells = '';
+    for (let i = 0; i < 42; i++) {
+      const dt = new Date(vy, vm, 1 - lead + i), iso = isoOf(dt.getFullYear(), dt.getMonth(), dt.getDate()), out = dt.getMonth() !== vm;
+      cells += `<button type="button" class="dp-day ${out ? 'out' : ''} ${iso === t ? 'today' : ''} ${iso === cur ? 'on' : ''}" data-d="${iso}">${dt.getDate()}</button>`;
+    }
+    m.innerHTML = `<div class="dp-head"><button type="button" class="ib edit" data-nav="-1" aria-label="Previous month">${icon('chevleft', 'regular', 18)}</button><div class="dp-title">${MONTHS[vm]} ${vy}</div><button type="button" class="ib edit" data-nav="1" aria-label="Next month">${icon('chevright', 'regular', 18)}</button></div>
+      <div class="dp-grid dp-wd">${['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(x => `<span>${x}</span>`).join('')}</div><div class="dp-grid">${cells}</div>
+      <div class="dp-foot"><button type="button" class="link" data-d="${t}">Today</button></div>`;
+  };
+  draw();
+  m.addEventListener('click', e => {
+    e.stopPropagation();   // the month buttons are replaced while drawing, so the page-level "click outside" handler must not see them
+    const nav = e.target.closest('[data-nav]'), day = e.target.closest('[data-d]');
+    if (nav) { vm += Number(nav.dataset.nav); if (vm < 0) { vm = 11; vy--; } if (vm > 11) { vm = 0; vy++; } draw(); }
+    else if (day) { inp.value = day.dataset.d; inp.dispatchEvent(new Event('input', {bubbles: true})); inp.dispatchEvent(new Event('change', {bubbles: true})); dpSync(inp); csClose(); btn.focus(); }
+  });
+  m.addEventListener('keydown', e => { if (e.key === 'Escape') { csClose(); btn.focus(); } });
+  const r = btn.getBoundingClientRect(), W = 300, mh = m.scrollHeight, below = innerHeight - r.bottom - 14, above = r.top - 14, up = below < mh && above > below;
+  m.style.width = W + 'px'; m.style.left = Math.max(8, Math.min(r.left, innerWidth - W - 12)) + 'px';
+  m.style.maxHeight = Math.max(240, up ? above : below) + 'px';
+  if (up) { m.style.bottom = (innerHeight - r.top + 6) + 'px'; m.style.transformOrigin = 'bottom'; } else { m.style.top = (r.bottom + 6) + 'px'; }
+  requestAnimationFrame(() => m.classList.add('show'));
+  (m.querySelector('.dp-day.on') || m.querySelector('.dp-day.today') || m.querySelector('.dp-day')).focus({preventScroll: true});
+}
+function enhanceDates() {
+  document.querySelectorAll('input[type=date]:not([data-dp])').forEach(inp => {
+    inp.dataset.dp = '1'; inp.classList.add('cs-native'); inp.tabIndex = -1;
+    const wrap = document.createElement('div'), btn = document.createElement('button');
+    wrap.className = 'cs dp'; wrap.style.cssText = inp.getAttribute('style') || ''; inp.removeAttribute('style');   // the field's own sizing (flex, width, margin) moves to the wrapper
+    btn.type = 'button'; btn.className = 'cs-btn'; btn.setAttribute('aria-haspopup', 'dialog');
+    inp.parentNode.insertBefore(wrap, inp); wrap.appendChild(btn); wrap.appendChild(inp);
+    btn.addEventListener('click', e => { e.stopPropagation(); csOpenBtn === btn ? csClose() : dpOpen(inp, btn); });
+    btn.addEventListener('keydown', e => { if (['ArrowDown', 'Enter', ' '].includes(e.key)) { e.preventDefault(); dpOpen(inp, btn); } });
+    dpSync(inp);
+  });
+}
 document.addEventListener('click', e => { if (csMenu && !csMenu.contains(e.target)) csClose(); });
 let csW = innerWidth;   // phones fire `resize` when the keyboard or address bar moves; only a width change should close the menu
 addEventListener('resize', () => { if (innerWidth !== csW) { csW = innerWidth; csClose(); } });
@@ -205,11 +284,10 @@ const BANK = {bca: '#0060AF', jago: '#FFB020', gopay: '#00AED5', fixed: '#ff2d55
 
 // The node width depends on the room inside the diagram card. The first render happens before the page's vertical
 // scrollbar exists, so `fitDiagram()` re-measures the real card after layout and rebuilds only the diagram if needed.
-// When the card is too narrow for five columns of nodes (small laptops, tablets, phones) the diagram is drawn as a stacked
-// flow instead ("stack" mode, plain HTML that wraps by itself), so it never has to scroll sideways.
+// The branched diagram is always drawn the same way (the user rejected a stacked version without branches). When the card is
+// too narrow for five columns of nodes (nodes never go below 200 px) the card scrolls sideways.
 let diagAvail = 0, lastNW = 0;
 const nwFor = avail => Math.max(200, Math.min(300, Math.floor((avail - 4 * 28) / 5)));   // 200 px is the narrowest node that still fits its longest line ("20% this cycle  +IDR 2,596,320")
-const isStack = avail => avail < 5 * 200 + 4 * 28;
 function decorateDiagram() {
   document.querySelectorAll('.diagram svg path').forEach(p => p.setAttribute('pathLength', '1'));
   document.querySelectorAll('.dnode').forEach((n, i) => { const t = parseFloat(n.style.top); n.style.setProperty('--d', (isNaN(t) ? 0.1 + i * 0.05 : 0.12 + t / 1000).toFixed(2) + 's'); });
@@ -218,24 +296,25 @@ function fitDiagram() {
   const card = document.querySelector('.funnelcard'); if (!card || tab !== 'dash') return;
   const cs = getComputedStyle(card), avail = card.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); if (avail <= 0) return;
   diagAvail = avail;
-  if ((isStack(avail) ? 'stack' : nwFor(avail)) !== lastNW) { card.innerHTML = diagram(K()); decorateDiagram(); }
+  if (nwFor(avail) !== lastNW) { card.innerHTML = diagram(K()); decorateDiagram(); }
 }
+const ARROW = '#7d87a8';   // one neutral colour for every connector arrow
 const RING = {'#ffe9ee': 'red', '#e8f7ec': 'green', '#e3effa': 'blue'};
 function diagram(k) {
   const c = k.c, S = c.salary, env = c.env;
-  const avail = diagAvail || (($('#view').clientWidth || 1100) - 60), stack = isStack(avail);
+  const avail = diagAvail || (($('#view').clientWidth || 1100) - 60);
   const CG = 28, NH = 80, LV = 50, NW = nwFor(avail), G = '#0a9d58';
-  lastNW = stack ? 'stack' : NW;
+  lastNW = NW;
   const pct = v => pc2(v / S * 100) + ' of salary';
   const X = i => i * (NW + CG);                 // col 0 = saving, 1 = fixed, 2-4 = budgets
   const Wd = 5 * NW + 4 * CG;
   const Y = [0, 1, 2, 3, 4].map(i => i * (NH + LV));
   const nodes = [], paths = [];
   const add = n => { nodes.push(n); return n; };
-  const arrowDown = (a, b, col) => {   // straight/curved arrow from bottom of a to top of b
-    const x1 = a.cx, ya = a.y + (a.h || NH), x2 = b.cx, yb = b.y - 10, my = (ya + yb) / 2;
-    paths.push(`<path d="M${x1},${ya} C${x1},${my} ${x2},${my} ${x2},${yb}" fill="none" stroke="${col}" stroke-width="3.5" stroke-linecap="round"/>
-      <polygon points="${x2},${b.y} ${x2 - 6.5},${b.y - 11} ${x2 + 6.5},${b.y - 11}" fill="${col}"/>`);
+  const arrowDown = (a, b) => {   // straight/curved arrow from bottom of a to top of b
+    const x1 = a.cx, ya = a.y + (a.h || NH), x2 = b.ax ?? b.cx, yb = b.y - 10, my = (ya + yb) / 2;
+    paths.push(`<path d="M${x1},${ya} C${x1},${my} ${x2},${my} ${x2},${yb}" fill="none" stroke="${ARROW}" stroke-width="3.5" stroke-linecap="round"/>
+      <polygon points="${x2},${b.y} ${x2 - 6.5},${b.y - 11} ${x2 + 6.5},${b.y - 11}" fill="${ARROW}"/>`);
   };
 
   const remW = NW, remCx = (X(1) + X(4) + NW) / 2, cashCx = X(0) + NW / 2;
@@ -243,8 +322,9 @@ function diagram(k) {
   const cash = add({id: 'cash', cx: cashCx, y: Y[1], w: NW, title: `${pc2(c.savePct)} to cash saving`, sub: pct(k.save), amt: k.save, color: BANK.bca, bg: '#e3effa'});
   const rem = add({id: 'rem', cx: remCx, y: Y[1], w: remW, title: 'Remaining', sub: `${pc2(100 - c.savePct)} of salary`, amt: k.afterSave, color: BANK.bca, bg: '#e3effa'});
   const savH = 66 + 14 * (3 + (k.transferred ? 1 : 0)), busY = Y[4] + NH + 28;      // the orange bus line enters the node at its vertical middle
-  const sav = add({id: 'sav', cx: cashCx, y: busY - savH / 2, w: NW, h: savH, title: 'Cash saving', color: BANK.jago, bg: BANK.jago, fg: '#1a1a1a', logo: 'jago', amt: k.total,
-    lines: [['Previous', rp(k.prev)], [pc2(c.savePct) + ' this cycle', inflow(k.save)], ['Leftovers', inflow(k.moved)], ...(k.transferred ? [['Moved to investments', outflow(k.transferred)]] : [])]});
+  const savW = Math.max(NW, 290);   // wider than the other nodes so 'Leftovers moved in' and 'Moved to investments' fit on one line; it grows to the right (column 1 is empty at this height)
+  const sav = add({id: 'sav', cx: X(0) + savW / 2, ax: cashCx, y: busY - savH / 2, w: savW, h: savH, title: 'Cash saving', color: BANK.jago, bg: BANK.jago, fg: '#1a1a1a', logo: 'jago', amt: k.total,
+    lines: [['Previous', rp(k.prev)], [pc2(c.savePct) + ' this cycle', inflow(k.save)], ['Leftovers moved in', inflow(k.moved)], ...(k.transferred ? [['Moved to investments', outflow(k.transferred)]] : [])]});
   arrowDown(sal, cash, BANK.bca); arrowDown(sal, rem, BANK.bca); arrowDown(cash, sav, BANK.jago);
 
   // fixed expenses: single node
@@ -261,13 +341,13 @@ function diagram(k) {
       click: e.moved ? `undoMove('${key}')` : rest > 0 ? `moveLeft('${key}')` : ''});
     arrowDown(rem, b, color); arrowDown(b, ex, BANK.fixed); arrowDown(ex, rm, G);
     // remaining → my cash saving (bus under the row, entering the saving node from the right)
-    const sx = X(0) + NW + 2;
-    paths.push(`<path d="M${cx},${Y[4] + NH} V${busY - 22} Q${cx},${busY} ${cx - 22},${busY} H${sx + 12}" fill="none" stroke="${BANK.jago}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`);
+    const sx = X(0) + savW + 2;
+    paths.push(`<path d="M${cx},${Y[4] + NH} V${busY - 22} Q${cx},${busY} ${cx - 22},${busY} H${sx + 12}" fill="none" stroke="${ARROW}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`);
   });
-  paths.push(`<polygon points="${X(0) + NW + 2},${busY} ${X(0) + NW + 14},${busY - 6.5} ${X(0) + NW + 14},${busY + 6.5}" fill="${BANK.jago}"/>`);
+  paths.push(`<polygon points="${X(0) + savW + 2},${busY} ${X(0) + savW + 14},${busY - 6.5} ${X(0) + savW + 14},${busY + 6.5}" fill="${ARROW}"/>`);
 
   const nodeHtml = (n, abs) => {
-    const h = n.h || NH, place = abs ? `left:${n.cx - n.w / 2}px;top:${n.y}px;width:${n.w}px;height:${h}px;` : '';   // stack mode: the CSS places the node
+    const h = n.h || NH, place = abs ? `left:${n.cx - n.w / 2}px;top:${n.y}px;width:${n.w}px;height:${h}px;` : '';
     return `<div class="dnode ${n.logo ? 'hl' : ''} ${n.click ? 'click' : ''}" ${RING[n.bg] ? `data-ring="${RING[n.bg]}"` : ''} ${n.click ? `onclick="${n.click}"` : ''} ${n.tip ? `data-tip="${esc(n.tip)}"` : ''} style="${place}background:${n.bg || '#fff'};color:${n.fg || 'inherit'}">
       ${n.logo ? `<img class="mini" src="/static/logos/${n.logo}.svg">` : ''}
       <div class="dt">${esc(n.title)}</div>
@@ -275,16 +355,6 @@ function diagram(k) {
       ${n.lines ? n.lines.map(l => `<div class="ds" style="display:flex;justify-content:space-between;${n.fg ? 'color:' + n.fg + ';opacity:.85' : ''}"><span>${l[0]}</span><b style="color:inherit">${l[1]}</b></div>`).join('') : `<div class="ds" ${n.fg ? `style="color:${n.fg};opacity:.8"` : ''}>${esc(n.sub)}</div>`}</div>`;
   };
 
-  if (stack) {   // Salary, then the 20% / remaining split, then one chain per budget, then Cash saving
-    const N = id => nodeHtml(nodes.find(n => n.id === id), false), arrow = col => `<div class="flow-arrow" style="--c:${col}"></div>`;
-    const chain = (ids, cols) => `<div class="flow-chain">${ids.map((id, i) => (i ? arrow(cols[i - 1]) : '') + N(id)).join('')}</div>`;
-    return `<div class="flow">
-      <div class="flow-one">${N('sal')}</div>${arrow(BANK.bca)}
-      <div class="flow-pair">${N('cash')}${N('rem')}</div>${arrow(BANK.bca)}
-      <div class="flow-cols">${chain(['fix'], [])}${['daily', 'date', 'free'].map(key => chain([key + 'b', key + 'x', key + 'r'], [BANK.fixed, G])).join('')}</div>
-      ${arrow(BANK.jago)}
-      <div class="flow-one">${N('sav')}</div></div>`;
-  }
   const Ht = Math.max(...nodes.map(n => n.y + (n.h || NH)));
   return `<div class="diagram" style="width:${Wd}px;height:${Ht + 40}px;margin:0 auto"><svg width="${Wd}" height="${Ht + 40}">${paths.join('')}</svg>${nodes.map(n => nodeHtml(n, true)).join('')}</div>`;
 }
@@ -417,7 +487,7 @@ function stockPanel(k) {
   </div>
   <div class="card">
     <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Holdings</div>
-      <div class="s" style="margin-left:auto;display:flex;align-items:center;gap:10px"><span class="live ${marketOpen() ? 'on' : ''}"><i></i>${marketOpen() ? 'Live' : 'Market closed'}</span>${noPrices ? 'Loading prices…' : `${GUEST ? 'Simulated prices' : 'Yahoo Finance, delayed ~10 min'} · updated <span id="quoteTime">${upd}</span>${stale ? ' · <b class="neg">some prices are old</b>' : ''}`}<button class="link" onclick="loadQuotes(true).then(render)">Refresh</button></div></div>
+      <div class="s" style="margin-left:auto;display:flex;align-items:center;gap:10px"><span class="live ${marketOpen() ? 'on' : ''}"><i></i>${marketOpen() ? 'Live' : 'Market closed'}</span>${noPrices ? 'Loading prices…' : `${GUEST ? 'Simulated prices' : 'Yahoo Finance, delayed ~10 min'} · updated <span id="quoteTime">${upd}</span>${stale ? ' · <b class="neg">some prices are old</b>' : ''}`}<button class="ib edit sm" data-tip="Refresh prices" aria-label="Refresh prices" onclick="loadQuotes(true).then(render)">${icon('refresh', 'regular', 16)}</button></div></div>
     <form id="hadd" onsubmit="addHolding(event)"></form>
     <table class="crud">
       <tr><th style="width:150px">Stock</th><th class="r" style="width:110px">Lots</th><th class="r" style="width:190px">Invested</th><th class="r">Avg price</th><th class="r">Last price</th><th class="r">Today</th><th class="r">Market value</th><th class="r">P&L</th><th class="r">Return</th><th style="width:80px"></th></tr>
@@ -438,7 +508,7 @@ function stockPanel(k) {
         <td class="r ${flash[r.h.ticker + '.JK'] ? 'flash-' + flash[r.h.ticker + '.JK'] : ''}"><b>${rp(r.value)}</b></td>
         <td class="r ${plClass(r.pl)}"><b>${(r.pl > 0 ? '+' : '') + rp(r.pl)}</b></td>
         <td class="r ${plClass(r.ret)}"><b>${signed(r.ret)}</b></td>
-        <td class="r"><button class="link" onclick="delHolding(${r.i})">Delete</button></td></tr>`).join('')}
+        <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delHolding(${r.i})">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
     </table>
   </div>`;
 }
@@ -478,7 +548,7 @@ function goldPanel() {
         <td>${fmtDate(x.date)}</td><td class="r">${x.grams.toLocaleString('en-US', {maximumFractionDigits: 6})} g</td><td class="r">${rp(x.paid)}</td>
         <td class="r">${rp(x.paid / x.grams)}</td><td class="r"><b>${rp(val)}</b></td>
         <td class="r ${plClass(val - x.paid)}"><b>${(val - x.paid > 0 ? '+' : '') + rp(val - x.paid)}</b></td><td>${esc(x.note || '—')}</td>
-        <td class="r"><button class="link" onclick="delGold('${x.id}')">Delete</button></td></tr>`; }).join('')}
+        <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delGold('${x.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`; }).join('')}
       ${items.length ? '' : '<tr><td colspan="8" class="s" style="text-align:center;padding:22px">No Treasury purchases yet. Add your first purchase above.</td></tr>'}
     </table>
   </div>`;
@@ -489,52 +559,54 @@ function transferList() {
   return `<h2>Moved from cash saving <span class="s">Investments and other spending, also shown on the Spending page</span></h2>
   <div class="card"><table>
     <tr><th>Date</th><th>To</th><th>Remarks</th><th class="r">Amount</th><th></th></tr>
-    ${list.map(t => `<tr><td>${fmtDate(t.date)}</td><td><span class="cchip">${t.type === 'gold' ? '<img src="/static/logos/treasury-icon.png" style="height:14px;vertical-align:-2px"> Treasury' : t.type === 'expense' ? catLabel(t.cat || 'Other') : '<span class="ic">' + icon('trending', 'regular', 14) + '</span> Stockbit'}</span></td><td>${esc(t.note || '—')}</td><td class="r neg"><b>−${rp(t.amount)}</b></td>
-      <td class="r"><button class="link" onclick="delTransfer('${t.id}')">Delete</button></td></tr>`).join('')}
+    ${list.map(t => `<tr><td>${fmtDate(t.date)}</td><td><span class="cchip ${t.type === 'expense' ? '' : 'logochip'}">${t.type === 'gold' ? '<img src="/static/logos/treasury.png" alt="Treasury">' : t.type === 'expense' ? catLabel(t.cat || 'Other') : '<img src="/static/logos/stockbit.svg" alt="Stockbit">'}</span></td><td>${esc(t.note || '—')}</td><td class="r neg"><b>−${rp(t.amount)}</b></td>
+      <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delTransfer('${t.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
     ${list.length ? '' : '<tr><td colspan="5" class="s" style="text-align:center;padding:22px">Nothing moved yet. Top up Stockbit or buy from Treasury and it will show here.</td></tr>'}
   </table></div>`;
 }
 
-function topUp(ev) {
+async function topUp(ev) {
   ev.preventDefault(); const f = ev.target, amt = num(f.amt.value); if (!amt) return;
-  if (amt > K().total && !confirm('This is more than your current cash saving. Continue anyway?')) return;
-  S.wealth.transfers.push({id: uid(), date: f.date.value, type: 'stockbit', cat: 'Investment', amount: amt, note: f.note.value.trim()});
+  const date = f.date.value, note = f.note.value.trim();
+  if (amt > K().total && !(await ask({title: 'More than your cash saving', text: 'This is more than your current cash saving. Continue anyway?', ok: 'Continue'}))) return;
+  S.wealth.transfers.push({id: uid(), date, type: 'stockbit', cat: 'Investment', amount: amt, note});
   S.wealth.stocks.cash += amt; commit();
 }
-function delTransfer(id) {
-  const t = S.wealth.transfers.find(x => x.id === id); if (!t || !confirm('Delete this transfer? The money goes back to your cash saving.')) return;
+async function delTransfer(id) {
+  const t = S.wealth.transfers.find(x => x.id === id); if (!t || !(await ask({title: 'Delete this transfer?', text: 'The money goes back to your cash saving.', ok: 'Delete', danger: true}))) return;
   S.wealth.transfers = S.wealth.transfers.filter(x => x.id !== id);
   if (t.type === 'stockbit') S.wealth.stocks.cash -= t.amount;
   if (t.type === 'gold') S.wealth.gold.items = S.wealth.gold.items.filter(x => x.id !== t.goldId);
   commit();
 }
-function addGold(ev) {
+async function addGold(ev) {
   ev.preventDefault(); const g = n => document.querySelector(`[form=gadd][name=${n}]`);
   const grams = Number(g('grams').value), paid = num(g('paid').value); if (!grams || !paid) return;
-  if (paid > K().total && !confirm('This is more than your current cash saving. Continue anyway?')) return;
+  const date = g('date').value, note = g('note').value.trim();   // read before the dialog opens: the page may redraw underneath it
+  if (paid > K().total && !(await ask({title: 'More than your cash saving', text: 'This is more than your current cash saving. Continue anyway?', ok: 'Continue'}))) return;
   const id = uid();
-  S.wealth.gold.items.push({id, date: g('date').value, grams, paid, note: g('note').value.trim()});
-  S.wealth.transfers.push({id: 't' + id, date: g('date').value, type: 'gold', cat: 'Investment', amount: paid, note: g('note').value.trim(), goldId: id}); commit();
+  S.wealth.gold.items.push({id, date, grams, paid, note});
+  S.wealth.transfers.push({id: 't' + id, date, type: 'gold', cat: 'Investment', amount: paid, note, goldId: id}); commit();
 }
-function delGold(id) {
+async function delGold(id) {
   const taken = S.wealth.transfers.some(x => x.goldId === id);
-  if (!confirm(taken ? 'Delete this Treasury purchase? The money goes back to your cash saving.' : 'Delete this Treasury purchase?')) return;
+  if (!(await ask({title: 'Delete this Treasury purchase?', text: taken ? 'The money goes back to your cash saving.' : '', ok: 'Delete', danger: true}))) return;
   S.wealth.gold.items = S.wealth.gold.items.filter(x => x.id !== id);
   S.wealth.transfers = S.wealth.transfers.filter(x => x.goldId !== id); commit();
 }
 
-function addHolding(ev) {
+async function addHolding(ev) {
   ev.preventDefault(); const g = n => document.querySelector(`[form=hadd][name=${n}]`);
   const t = g('ticker').value.trim().toUpperCase().replace(/\.JK$/, ''), lots = Number(g('lots').value), inv = num(g('inv').value);
   if (!t || !lots) return;
   if (g('fund').checked) {
-    if (inv > S.wealth.stocks.cash) { alert('Your trading balance is lower than this purchase. Top up from cash saving first.'); return; }
+    if (inv > S.wealth.stocks.cash) { await notify({title: 'Trading balance too low', text: 'Your trading balance is lower than this purchase. Top up from cash saving first.'}); return; }
     S.wealth.stocks.cash -= inv;
   }
   S.wealth.stocks.holdings.push({ticker: t, lots, invested: inv}); persist(); render(); loadQuotes();
 }
 function editHolding(i, f, v) { S.wealth.stocks.holdings[i][f] = f === 'lots' ? (Number(v) || 0) : num(v); commit(); }
-function delHolding(i) { if (confirm('Delete this holding?')) { S.wealth.stocks.holdings.splice(i, 1); commit(); } }
+async function delHolding(i) { if (await ask({title: 'Delete this holding?', ok: 'Delete', danger: true})) { S.wealth.stocks.holdings.splice(i, 1); commit(); } }
 function setCash(v) { S.wealth.stocks.cash = num(v); commit(); }
 
 function savingsPanel(k) {
@@ -564,8 +636,8 @@ function savingsPanel(k) {
 const CATS = ['Food & drink', 'Groceries', 'Transport', 'Entertainment', 'Date', 'Shopping', 'Health', 'Housing', 'Installments', 'Subscriptions', 'Bills & utilities', 'Laundry', 'Investment', 'Other'];
 const CAT_ICON = {'Food & drink': 'food', 'Groceries': 'cart', 'Transport': 'car', 'Entertainment': 'movies', 'Date': 'heart', 'Shopping': 'bag', 'Health': 'heartpulse', 'Housing': 'home', 'Installments': 'card', 'Subscriptions': 'repeat', 'Bills & utilities': 'flash', 'Laundry': 'washer', 'Investment': 'trending', 'Other': 'box'};
 const catLabel = n => `<span class="ic">${icon(CAT_ICON[n] || 'box', 'regular', 16)}</span> ${esc(n)}`;
-// alphabetical, but the category already chosen stays at the top of the list
-const catOpts = sel => [...CATS].sort((a, b) => (b === sel) - (a === sel) || a.localeCompare(b)).map(n => `<option value="${n}" ${n === sel ? 'selected' : ''}>${n}</option>`).join('');
+// alphabetical, "Other" always last, but the category already chosen stays at the top of the list
+const catOpts = sel => [...CATS].sort((a, b) => (b === sel) - (a === sel) || (a === 'Other') - (b === 'Other') || a.localeCompare(b)).map(n => `<option value="${n}" ${n === sel ? 'selected' : ''}>${n}</option>`).join('');
 const today = () => new Date().toLocaleDateString('sv-SE');
 let spendTab = 'daily', editing = null;
 const TAB_WALLET = {daily: 'gopay', date: 'jago', free: 'jago'};
@@ -600,7 +672,7 @@ function spend(k) {
         <td>${chk('fixed', i)}</td><td><select onchange="editFixedField(${i},'cat',this.value)">${catOpts(x.cat)}</select></td>
         <td><input value="${esc(x.name)}" onchange="editFixedField(${i},'name',this.value)"></td>
         <td><input class="money" inputmode="numeric" autocomplete="off" value="${fm(x.amount)}" onchange="editFixed(${i},this.value)" style="text-align:right;color:var(--red);font-weight:900"></td>
-        <td class="r"><button class="link" onclick="delFixed(${i})">Delete</button></td></tr>`).join('')}
+        <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delFixed(${i})">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
     </table>
     </div>` : ''}
   </div>
@@ -617,7 +689,7 @@ function spend(k) {
       ${mini('plain', miniTile('receipt', 'red'), 'Spent', rp(sp), '', false, 'neg')}
       ${mini('plain', miniTile('moneyhand', 'green'), e.moved ? 'Left (moved to cash saving)' : 'Left', rp(l), '', false, l < 0 ? 'neg' : 'pos')}
       ${e.moved
-        ? `<div class="stat" style="display:flex;align-items:center;justify-content:center"><div style="text-align:center"><span class="chip">Moved ${rp(e.moved)} to cash saving</span><br><button class="link" onclick="undoMove('${spendTab}')">Undo</button></div></div>`
+        ? `<div class="stat" style="display:flex;align-items:center;justify-content:center"><div style="text-align:center"><span class="chip">Moved ${rp(e.moved)} to cash saving</span><br><button class="ib edit" data-tip="Undo" aria-label="Undo" onclick="undoMove('${spendTab}')">${icon('undo', 'regular', 18)}</button></div></div>`
         : `<button class="cta ghost move-btn" ${l <= 0 ? 'disabled' : ''} onclick="moveLeft('${spendTab}')">Move ${l > 0 ? rp(l) : 'leftover'} to cash saving</button>`}
     </div>
     ${spendTab === 'daily' ? dailyStats(e) : ''}
@@ -638,9 +710,9 @@ function spend(k) {
         <td><select form="ef" name="cat">${opts(x.cat)}</select></td>
         <td><input form="ef" name="note" value="${esc(x.note || '')}"></td>
         <td><input form="ef" name="amt" class="money" inputmode="numeric" autocomplete="off" value="${fm(x.amt)}" required style="text-align:right"></td>
-        <td class="r"><button form="ef" class="link">Save</button> &nbsp; <button type="button" class="link" onclick="editing=null;render()">Cancel</button></td></tr>` : `
+        <td class="r"><button form="ef" class="ib edit" data-tip="Save" aria-label="Save">${icon('save', 'regular', 18)}</button><button type="button" class="ib edit" data-tip="Cancel" aria-label="Cancel" onclick="editing=null;render()">${icon('dismiss', 'regular', 18)}</button></td></tr>` : `
       <tr><td>${chk(spendTab, i)}</td><td>${fmtDate(x.date)}</td><td><span class="cchip">${catLabel(x.cat || 'Other')}</span></td><td>${esc(x.note || '—')}</td><td class="r neg"><b>−${rp(x.amt)}</b></td>
-        <td class="r"><button class="link" onclick="editing={key:spendTab,i:${i}};render()">Edit</button> &nbsp; <button class="link" onclick="delSpend(spendTab,${i})">Delete</button></td></tr>`).join('')}
+        <td class="r"><button class="ib edit" data-tip="Edit" aria-label="Edit" onclick="editing={key:spendTab,i:${i}};render()">${icon('edit', 'regular', 18)}</button><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delSpend(spendTab,${i})">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
       ${rows.length || spendTab === 'daily' ? '' : '<tr><td colspan="6" class="s" style="text-align:center;padding:22px">No expenses yet. Add your first one above.</td></tr>'}
     </table>
     ${spendTab === 'daily' ? dayList(e) : ''}
@@ -678,21 +750,21 @@ function cashPanel(k) {
         <td>${t.type === 'stockbit' ? `<span class="cchip">${catLabel('Investment')}</span>` : `<select form="cef" name="cat">${catOpts(catOf(t))}</select>`}</td>
         <td><input form="cef" name="note" value="${esc(t.note || '')}"></td>
         <td><input form="cef" name="amt" class="money" inputmode="numeric" autocomplete="off" value="${fm(t.amount)}" required style="text-align:right"></td>
-        <td class="r"><button form="cef" class="link">Save</button> &nbsp; <button type="button" class="link" onclick="editing=null;render()">Cancel</button></td></tr>` : `
+        <td class="r"><button form="cef" class="ib edit" data-tip="Save" aria-label="Save">${icon('save', 'regular', 18)}</button><button type="button" class="ib edit" data-tip="Cancel" aria-label="Cancel" onclick="editing=null;render()">${icon('dismiss', 'regular', 18)}</button></td></tr>` : `
       <tr><td>${fmtDate(t.date)}</td><td><span class="cchip">${catLabel(catOf(t))}</span></td>
         <td>${t.note ? esc(t.note) + ' ' : t.type === 'expense' ? '—' : ''}${t.type === 'stockbit' ? '<span class="s">Stockbit top-up</span>' : t.type === 'gold' ? '<span class="s">Treasury purchase</span>' : ''}</td>
         <td class="r neg"><b>−${rp(t.amount)}</b></td>
-        <td class="r">${t.type === 'gold' ? '' : `<button class="link" onclick="editing={key:'cash',id:'${t.id}'};render()">Edit</button> &nbsp; `}<button class="link" onclick="delTransfer('${t.id}')">Delete</button></td></tr>`).join('')}
+        <td class="r">${t.type === 'gold' ? '' : `<button class="ib edit" data-tip="Edit" aria-label="Edit" onclick="editing={key:'cash',id:'${t.id}'};render()">${icon('edit', 'regular', 18)}</button>`}<button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delTransfer('${t.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
       ${rows.length ? '' : '<tr><td colspan="5" class="s" style="text-align:center;padding:22px">Nothing has left your cash saving in this cycle.</td></tr>'}
     </table>
   </div>`;
 }
 
-function addCash(ev) {
+async function addCash(ev) {
   ev.preventDefault(); const g = n => document.querySelector(`[form=cadd][name=${n}]`);
   const amt = num(g('amt').value); if (!amt) return;
-  if (amt > K().total && !confirm('This is more than your current cash saving. Continue anyway?')) return;
-  const date = g('date').value, cat = g('cat').value, note = g('note').value.trim();
+  const date = g('date').value, cat = g('cat').value, note = g('note').value.trim();   // read before the dialog opens: the page may redraw underneath it
+  if (amt > K().total && !(await ask({title: 'More than your cash saving', text: 'This is more than your current cash saving. Continue anyway?', ok: 'Continue'}))) return;
   if (cat === 'Investment') { S.wealth.transfers.push({id: uid(), date, type: 'stockbit', cat, amount: amt, note}); S.wealth.stocks.cash += amt; }
   else S.wealth.transfers.push({id: uid(), date, type: 'expense', cat, amount: amt, note});
   commit();
@@ -713,16 +785,16 @@ function selBar(scope, total) {
   if (!total) return '';
   const n = selCount(scope);
   return `<div class="selbar"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" class="chk" ${n === total ? 'checked' : ''} onchange="toggleAll('${scope}',this.checked)"> Select all</label>
-    <span class="s">${n} selected</span><button class="danger" ${n ? '' : 'disabled'} onclick="delSelected('${scope}')">Delete selected${n ? ` (${n})` : ''}</button>${n ? '<button class="link" onclick="sel.clear();render()">Clear</button>' : ''}</div>`;
+    <span class="s">${n} selected</span><button class="danger" ${n ? '' : 'disabled'} onclick="delSelected('${scope}')">${icon('trash', 'regular', 18)}<span>Delete selected${n ? ` (${n})` : ''}</span></button>${n ? `<button class="ib edit" data-tip="Clear selection" aria-label="Clear selection" onclick="sel.clear();render()">${icon('eraser', 'regular', 18)}</button>` : ''}</div>`;
 }
 const listOf = scope => scope === 'fixed' ? cur().fixed : E(scope).spends;
 function toggleSel(scope, i) { const k = scope + ':' + i; sel.has(k) ? sel.delete(k) : sel.add(k); render(); }
 function toggleAll(scope, on) { [...sel].forEach(k => k.startsWith(scope + ':') && sel.delete(k)); if (on) listOf(scope).forEach((_, i) => sel.add(scope + ':' + i)); render(); }
 function toggleDaySel(d) { const idx = E('daily').spends.map((x, i) => x.date === d ? i : -1).filter(i => i >= 0), all = idx.every(i => sel.has('daily:' + i));
   idx.forEach(i => all ? sel.delete('daily:' + i) : sel.add('daily:' + i)); render(); }
-function delSelected(scope) {
+async function delSelected(scope) {
   const idx = [...sel].filter(k => k.startsWith(scope + ':')).map(k => Number(k.split(':')[1])).sort((a, b) => b - a);
-  if (!idx.length || !confirm(`Delete ${idx.length} ${idx.length === 1 ? 'item' : 'items'}? This cannot be undone.`)) return;
+  if (!idx.length || !(await ask({title: `Delete ${idx.length} ${idx.length === 1 ? 'item' : 'items'}?`, text: 'This cannot be undone.', ok: 'Delete', danger: true}))) return;
   idx.forEach(i => listOf(scope).splice(i, 1)); commit();
 }
 let addDate = today(), openDays = new Set([today()]);
@@ -739,29 +811,30 @@ function dailyStats(e) {
   </div>`;
 }
 
+const WARN_AT = 0.9;   // a day turns yellow from this share of the daily cap (red only when over the cap)
 function dayList(e) {
   const cap = e.cap || 60000, by = {};
   e.spends.forEach((x, i) => (by[x.date] = by[x.date] || []).push({x, i}));
   const days = Object.keys(by).sort().reverse();
   if (!days.length) return '<div class="s" style="text-align:center;padding:24px">No expenses yet. Add your first meal above. Entries are grouped by day automatically.</div>';
-  return `<div class="daylist">${selBar('daily', e.spends.length)}<div class="s" style="margin:6px 0 10px">Grouped by day. Green means within the ${rp(cap)} cap, red means over.</div>` + days.map(d => {
-    const list = by[d], tot = list.reduce((a, r) => a + r.x.amt, 0), ok = tot <= cap, open = openDays.has(d), pc = Math.min(100, tot / cap * 100);
-    return `<div class="day ${ok ? 'good' : 'bad'}">
+  return `<div class="daylist">${selBar('daily', e.spends.length)}<div class="s" style="margin:6px 0 10px">Grouped by day. Yellow starts at ${WARN_AT * 100}% of the ${rp(cap)} cap, and red only when a day goes over it.</div>` + days.map(d => {
+    const list = by[d], tot = list.reduce((a, r) => a + r.x.amt, 0), lvl = tot > cap ? 'bad' : tot >= cap * WARN_AT ? 'warn' : 'good', open = openDays.has(d), pc = Math.min(100, tot / cap * 100);
+    return `<div class="day ${lvl}">
       <div class="dayhead" onclick="toggleDay('${d}')">
         <span class="chev">${icon(open ? 'chevdown' : 'chevright', 'regular', 16)}</span>
         <input type="checkbox" class="chk" onclick="event.stopPropagation()" onchange="toggleDaySel('${d}')" ${list.every(r => sel.has('daily:' + r.i)) ? 'checked' : ''}>
         <div><div class="t">${dayName(d)}</div><div class="s">${list.length} entr${list.length === 1 ? 'y' : 'ies'}</div></div>
         <div class="dbar"><i style="width:${pc}%"></i></div>
-        <div style="text-align:right"><div class="${ok ? 'pos' : 'neg'}" style="font-weight:900;font-size:17px">${rp(tot)}</div><div class="s" style="font-weight:900;color:${ok ? '#0a9d58' : 'var(--red)'}">${diffText(tot, cap)}</div></div>
+        <div style="text-align:right"><div class="${lvl === 'good' ? 'pos' : lvl === 'bad' ? 'neg' : 'amber'}" style="font-weight:900;font-size:17px">${rp(tot)}</div><div class="s" style="font-weight:900;color:${lvl === 'good' ? '#0a9d58' : lvl === 'bad' ? 'var(--red)' : '#b87700'}">${diffText(tot, cap)}</div></div>
       </div>
       ${open ? `<div class="daybody ${justOpened === d ? 'opening' : ''}"><table class="crud">${list.map(({x, i}) => editing && editing.key === 'daily' && editing.i === i ? `
         <tr class="editing"><td style="width:36px"></td><td style="width:150px"><input form="ef" type="date" name="date" value="${x.date}" required></td>
           <td style="width:190px"><select form="ef" name="cat">${catOpts(x.cat)}</select></td>
           <td><input form="ef" name="note" value="${esc(x.note || '')}"></td>
           <td style="width:150px"><input form="ef" name="amt" class="money" inputmode="numeric" autocomplete="off" value="${fm(x.amt)}" required style="text-align:right"></td>
-          <td class="r" style="width:140px"><button form="ef" class="link">Save</button> &nbsp; <button type="button" class="link" onclick="editing=null;render()">Cancel</button></td></tr>` : `
+          <td class="r" style="width:140px"><button form="ef" class="ib edit" data-tip="Save" aria-label="Save">${icon('save', 'regular', 18)}</button><button type="button" class="ib edit" data-tip="Cancel" aria-label="Cancel" onclick="editing=null;render()">${icon('dismiss', 'regular', 18)}</button></td></tr>` : `
         <tr><td style="width:36px">${chk('daily', i)}</td><td style="width:150px"><span class="cchip">${catLabel(x.cat || 'Other')}</span></td><td>${esc(x.note || '—')}</td><td class="r neg" style="width:150px"><b>−${rp(x.amt)}</b></td>
-          <td class="r" style="width:140px"><button class="link" onclick="editing={key:'daily',i:${i}};render()">Edit</button> &nbsp; <button class="link" onclick="delSpend('daily',${i})">Delete</button></td></tr>`).join('')}</table>
+          <td class="r" style="width:140px"><button class="ib edit" data-tip="Edit" aria-label="Edit" onclick="editing={key:'daily',i:${i}};render()">${icon('edit', 'regular', 18)}</button><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delSpend('daily',${i})">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}</table>
         <button class="link" style="margin:8px 0 4px" onclick="addToDay('${d}')">+ Add another entry to this day</button></div>` : ''}
     </div>`;
   }).join('') + '</div>';
@@ -838,7 +911,7 @@ function cycles(k) {
   <div class="card"><table>
     <tr><th>Cycle</th><th>Payday</th><th class="r">Salary</th><th class="r">Fixed</th><th class="r">Daily</th><th class="r">Date</th><th class="r">Free to use</th><th class="r">Cash saving after</th><th></th></tr>
     ${all.map(x => `<tr class="${x.c.id === S.activeId ? 'cur' : ''}"><td><b>${x.c.label}</b></td><td>${fmtDate(x.c.payday)}</td><td class="r">${rp(x.c.salary)}</td><td class="r">${rp(x.fixedTotal)}</td><td class="r">${rp(x.c.env.daily.amount)}</td><td class="r">${rp(x.c.env.date.amount)}</td><td class="r">${rp(x.free)}</td><td class="r"><b>${rp(x.total)}</b></td>
-      <td class="r"><button class="link" onclick="selectCycle('${x.c.id}')">Open</button></td></tr>`).join('')}
+      <td class="r"><button class="ib edit" data-tip="Open" aria-label="Open" onclick="selectCycle('${x.c.id}')">${icon('open', 'regular', 18)}</button></td></tr>`).join('')}
   </table></div>`;
 }
 
@@ -851,7 +924,7 @@ function addSpend(ev) { ev.preventDefault(); const f = ev.target.id === 'addf' ?
   E(spendTab).spends.push({date: g('date').value, cat: g('cat').value, note: g('note').value.trim(), amt}); commit(); }
 function saveSpend(ev) { ev.preventDefault(); const g = n => document.querySelector(`[form=ef][name=${n}]`);
   Object.assign(E(editing.key).spends[editing.i], {date: g('date').value, cat: g('cat').value, note: g('note').value.trim(), amt: num(g('amt').value)}); editing = null; commit(); }
-function delSpend(key, i) { if (confirm('Delete this expense?')) { E(key).spends.splice(i, 1); commit(); } }
+async function delSpend(key, i) { if (await ask({title: 'Delete this expense?', text: 'This cannot be undone.', ok: 'Delete', danger: true})) { E(key).spends.splice(i, 1); commit(); } }
 function moveLeft(key) { const e = E(key), l = left(e); if (l > 0) { e.moved += l; commit(); } }
 function undoMove(key) { E(key).moved = 0; commit(); }
 function editFixed(i, v) { cur().fixed[i].amount = num(v); commit(); }
@@ -860,10 +933,10 @@ function delFixed(i) { cur().fixed.splice(i, 1); commit(); }
 function addFixed(ev) { ev.preventDefault(); const g = n => document.querySelector(`[form=fadd][name=${n}]`);
   const amt = num(g('amt').value); if (!amt) return; cur().fixed.push({cat: g('cat').value, name: g('note').value.trim(), amount: amt}); commit(); }
 function selectCycle(id) { S.activeId = id; tab = 'dash'; commit(); }
-function newCycle(ev) {
+async function newCycle(ev) {
   ev.preventDefault(); const f = ev.target, last = S.cycles[S.cycles.length - 1], payday = f.payday.value;
   const label = monthLabel(payday);
-  if (S.cycles.some(x => x.label === label) && !confirm(`A ${label} cycle already exists. Add another?`)) return;
+  if (S.cycles.some(x => x.label === label) && !(await ask({title: `A ${label} cycle already exists`, text: 'Add another one?', ok: 'Add another'}))) return;
   const c = {id: 'c' + Date.now(), label, payday, salary: num(f.salary.value), savePct: last.savePct,
     fixed: last.fixed.map(x => ({...x})), env: newEnv(num(f.dailyAmt.value), num(f.dateAmt.value))};
   c.env.daily.cap = num(f.dailyCap.value) || 60000; c.savePct = Number(f.pct.value);
@@ -872,7 +945,7 @@ function newCycle(ev) {
 function editCycle(ev) { ev.preventDefault(); const f = ev.target, c = cur();
   c.payday = f.payday.value; c.salary = num(f.salary.value); c.savePct = Number(f.pct.value); c.label = monthLabel(c.payday);
   c.env.daily.amount = num(f.dailyAmt.value); c.env.daily.cap = num(f.dailyCap.value) || 60000; c.env.date.amount = num(f.dateAmt.value); commit(); }
-function resetAll() { if (confirm('Reset all data to the empty starting numbers?')) { S = structuredClone(DEFAULT); commit(); } }
+async function resetAll() { if (await ask({title: 'Reset all data?', text: 'Everything goes back to the empty starting numbers.', ok: 'Reset', danger: true, icon: 'warning'})) { S = structuredClone(DEFAULT); commit(); } }
 
 document.addEventListener('input', ev => {
   const el = ev.target; if (!el.classList || !el.classList.contains('money')) return;
@@ -886,6 +959,12 @@ document.addEventListener('input', ev => {
 let rz, rzW = innerWidth; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (innerWidth !== rzW) { rzW = innerWidth; S && render(); } }, 150); });
 const NAV_ICON = {dash: 'moneyhand', wealth: 'diamond', spend: 'receipt', cycles: 'calclock'};   // shown only in the phone / tablet bottom bar
 document.querySelectorAll('.nav').forEach(b => { b.insertAdjacentHTML('afterbegin', `<span class="navic">${icon(NAV_ICON[b.dataset.t], 'filled', 22)}</span>`); b.onclick = () => { tab = b.dataset.t; render(); scrollTo(0, 0); }; });
+document.querySelectorAll('.side-foot').forEach(f => f.addEventListener('submit', async e => {
+  e.preventDefault();
+  const yes = await ask(GUEST ? {title: 'Exit the demo?', text: 'The random demo data will be gone.', ok: 'Exit demo', danger: true, icon: 'signout'}
+                              : {title: 'Log out?', text: 'You will need to sign in again.', ok: 'Log out', danger: true, icon: 'signout'});
+  if (yes) f.submit();   // submit() does not fire this handler again
+}));
 document.querySelectorAll('.logout').forEach(b => b.insertAdjacentHTML('afterbegin', `<span class="logic">${icon('signout', 'regular', 20)}</span>`));
 $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
 
