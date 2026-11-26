@@ -449,14 +449,14 @@ const plClass = v => v < 0 ? 'neg' : v > 0 ? 'pos' : '';
 function wealth(k) {
   const sc = stockCalc(), gc = goldCalc(), total = k.total + sc.equity + gc.value;
   const kpi = (cls, logoHtml, name, amt, sub = '') => `<div class="pocket ${cls}"><div class="row">${logoHtml}<div><div class="name">${name}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div></div><div class="big-num">${amt}</div></div>`;
-  const tabs = [['savings', 'Cash saving', 'Bank Jago', k.total], ['stocks', 'Stockbit', 'Stocks', sc.equity], ['gold', 'Treasury', 'Gold', gc.value]];
+  const tabs = [['savings', 'Cash saving', 'Bank Jago', k.total], ['stocks', 'Stocks', 'Stockbit', sc.equity], ['gold', 'Gold', 'Treasury', gc.value]];
   const panel = {savings: () => savingsPanel(k) + transferList(), stocks: () => stockPanel(k), gold: goldPanel}[wealthTab]();
   return `
   <div class="grid g4">
     ${kpi('total', `<div class="ico t-navy" style="width:86px;height:48px;border-radius:16px">${icon('diamond', 'filled', 24)}</div>`, 'Total wealth', rp(total))}
     ${kpi('jago', logo('jago'), 'Cash saving', rp(k.total))}
-    ${kpi('stockbit', logo('stockbit'), 'Stockbit', rp(sc.equity), 'Total equity')}
-    ${kpi('gold', logo('treasury'), 'Treasury', rp(gc.value), 'Total value')}
+    ${kpi('stockbit', logo('stockbit'), 'Stocks', rp(sc.equity), 'Total equity')}
+    ${kpi('gold', logo('treasury'), 'Gold', rp(gc.value), 'Total value')}
   </div>
   <div class="tabs" style="margin-top:24px">${tabs.map(([key, name, sub, v]) =>
     `<button class="tab ${key === wealthTab ? 'on' : ''}" style="--tc:${{savings: BANK.jago, stocks: '#2d2d2d', gold: '#e6c800'}[key]}" onclick="setWealthTab('${key}')">${name}<span>${rp(v)}</span></button>`).join('')}</div>
@@ -531,7 +531,7 @@ function goldPanel() {
     ${box('P&L', (gc.pl > 0 ? '+' : '') + rp(gc.pl) + ' (' + signed(gc.ret) + ')', plClass(gc.pl))}
   </div>
   <div class="card">
-    <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Treasury purchases</div>
+    <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Gold purchases</div>
       <div class="row" style="margin-left:auto;gap:12px"><span class="s">Today's price per gram</span><b class="price-amt">${gc.price ? rp(gc.price) : 'Loading…'}</b><span class="live on"><i></i>Live</span></div></div>
     <div class="s" style="margin-bottom:10px">Each new purchase is taken from your cash saving. ${GUEST ? 'The price is simulated for this demo.' : "The live price is estimated from Yahoo Finance gold futures and the USD to IDR rate, matched to Treasury's sell price."}</div>
     <form id="gadd" onsubmit="addGold(event)"></form>
@@ -549,7 +549,7 @@ function goldPanel() {
         <td class="r">${rp(x.paid / x.grams)}</td><td class="r"><b>${rp(val)}</b></td>
         <td class="r ${plClass(val - x.paid)}"><b>${(val - x.paid > 0 ? '+' : '') + rp(val - x.paid)}</b></td><td>${esc(x.note || '—')}</td>
         <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delGold('${x.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`; }).join('')}
-      ${items.length ? '' : '<tr><td colspan="8" class="s" style="text-align:center;padding:22px">No Treasury purchases yet. Add your first purchase above.</td></tr>'}
+      ${items.length ? '' : '<tr><td colspan="8" class="s" style="text-align:center;padding:22px">No gold purchases yet. Add your first purchase above.</td></tr>'}
     </table>
   </div>`;
 }
@@ -561,7 +561,7 @@ function transferList() {
     <tr><th>Date</th><th>To</th><th>Remarks</th><th class="r">Amount</th><th></th></tr>
     ${list.map(t => `<tr><td>${fmtDate(t.date)}</td><td><span class="cchip ${t.type === 'expense' ? '' : 'logochip'}">${t.type === 'gold' ? '<img src="/static/logos/treasury.png" alt="Treasury">' : t.type === 'expense' ? catLabel(t.cat || 'Other') : '<img src="/static/logos/stockbit.svg" alt="Stockbit">'}</span></td><td>${esc(t.note || '—')}</td><td class="r neg"><b>−${rp(t.amount)}</b></td>
       <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delTransfer('${t.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
-    ${list.length ? '' : '<tr><td colspan="5" class="s" style="text-align:center;padding:22px">Nothing moved yet. Top up Stockbit or buy from Treasury and it will show here.</td></tr>'}
+    ${list.length ? '' : '<tr><td colspan="5" class="s" style="text-align:center;padding:22px">Nothing moved yet. Top up your stocks or buy gold and it will show here.</td></tr>'}
   </table></div>`;
 }
 
@@ -590,7 +590,7 @@ async function addGold(ev) {
 }
 async function delGold(id) {
   const taken = S.wealth.transfers.some(x => x.goldId === id);
-  if (!(await ask({title: 'Delete this Treasury purchase?', text: taken ? 'The money goes back to your cash saving.' : '', ok: 'Delete', danger: true}))) return;
+  if (!(await ask({title: 'Delete this gold purchase?', text: taken ? 'The money goes back to your cash saving.' : '', ok: 'Delete', danger: true}))) return;
   S.wealth.gold.items = S.wealth.gold.items.filter(x => x.id !== id);
   S.wealth.transfers = S.wealth.transfers.filter(x => x.goldId !== id); commit();
 }
@@ -731,10 +731,10 @@ function cashPanel(k) {
     <div class="grid g4" style="margin-bottom:14px;gap:14px">
       ${mini('jago', logo('jago'), 'Cash saving', rp(k.total))}
       ${mini('plain', miniTile('savings', 'green'), 'Added this cycle', rp(k.save + k.moved), pc2(k.c.savePct) + ' of salary + leftovers', false, 'pos')}
-      ${mini('plain', miniTile('trending', 'navy'), 'Invested this cycle', rp(invested), 'Stockbit and Treasury', false, invested ? 'neg' : '')}
+      ${mini('plain', miniTile('trending', 'navy'), 'Invested this cycle', rp(invested), 'Stocks and gold', false, invested ? 'neg' : '')}
       ${mini('plain', miniTile('receipt', 'red'), 'Other spending', rp(other), '', false, other ? 'neg' : '')}
     </div>
-    <div class="s" style="margin-bottom:10px">Everything here comes out of your cash saving. The Investment category is a Stockbit top-up, and it also shows on the Wealth page. Treasury purchases are added in the Treasury tab of the Wealth page and appear here too.</div>
+    <div class="s" style="margin-bottom:10px">Everything here comes out of your cash saving. The Investment category is a stock top-up, and it also shows on the Wealth page. Gold purchases are added in the Gold tab of the Wealth page and appear here too.</div>
     <form id="cadd" onsubmit="addCash(event)"></form><form id="cef" onsubmit="saveCash(event)"></form>
     <table class="crud">
       <tr><th style="width:150px">Date</th><th style="width:190px">Category</th><th>Remarks</th><th class="r" style="width:150px">Amount</th><th style="width:140px"></th></tr>
@@ -752,7 +752,7 @@ function cashPanel(k) {
         <td><input form="cef" name="amt" class="money" inputmode="numeric" autocomplete="off" value="${fm(t.amount)}" required style="text-align:right"></td>
         <td class="r"><button form="cef" class="ib edit" data-tip="Save" aria-label="Save">${icon('save', 'regular', 18)}</button><button type="button" class="ib edit" data-tip="Cancel" aria-label="Cancel" onclick="editing=null;render()">${icon('dismiss', 'regular', 18)}</button></td></tr>` : `
       <tr><td>${fmtDate(t.date)}</td><td><span class="cchip">${catLabel(catOf(t))}</span></td>
-        <td>${t.note ? esc(t.note) + ' ' : t.type === 'expense' ? '—' : ''}${t.type === 'stockbit' ? '<span class="s">Stockbit top-up</span>' : t.type === 'gold' ? '<span class="s">Treasury purchase</span>' : ''}</td>
+        <td>${t.note ? esc(t.note) + ' ' : t.type === 'expense' ? '—' : ''}${t.type === 'stockbit' ? '<span class="s">Stock top-up</span>' : t.type === 'gold' ? '<span class="s">Gold purchase</span>' : ''}</td>
         <td class="r neg"><b>−${rp(t.amount)}</b></td>
         <td class="r">${t.type === 'gold' ? '' : `<button class="ib edit" data-tip="Edit" aria-label="Edit" onclick="editing={key:'cash',id:'${t.id}'};render()">${icon('edit', 'regular', 18)}</button>`}<button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delTransfer('${t.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
       ${rows.length ? '' : '<tr><td colspan="5" class="s" style="text-align:center;padding:22px">Nothing has left your cash saving in this cycle.</td></tr>'}
