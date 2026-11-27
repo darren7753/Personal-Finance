@@ -38,7 +38,7 @@ function chartSection() {
       <div class="dcanvas"><canvas id="donutC"></canvas><div class="dlabels" id="donutLabels"></div><div class="dcenter" id="donutCenter"></div></div><div id="donutLegend"></div></div>
     <div class="card chartcard"><div class="chead"><div class="t">Daily trend</div>
       <div class="seg" id="trendSeg">${TREND_TYPES.map(([v, l]) => `<button type="button" data-t="${v}" class="${v === trendType ? 'on' : ''}" onclick="setTrendType('${v}')">${l}</button>`).join('')}</div></div>
-      <div class="tcanvas"><div class="tyaxis"><canvas id="trendY"></canvas></div><div class="tscroll" id="trendScroll"><div class="tinner"><canvas id="trendC"></canvas></div></div></div>
+      <div class="tcanvas"><div class="tchaxis"><canvas id="trendY"></canvas></div><div class="tchscroll" id="trendScroll"><div class="tchinner"><canvas id="trendC"></canvas></div></div></div>
       <div class="tlegend" id="trendLegend"></div></div>
   </div>`;
 }
