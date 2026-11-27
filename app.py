@@ -5,6 +5,8 @@ import os
 import tempfile
 import threading
 import time
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from authlib.integrations.flask_client import OAuth
@@ -326,24 +328,52 @@ def _save_quotes(cache, updated):
     QUOTES.write_text(json.dumps(cache), encoding="utf-8")
 
 
+TREASURY_API = "https://webv2-api.treasury.id/api/v1/external/wp/gold/price"  # the same data behind the chart on treasury.id
+
+
+def _treasury_gold():
+    """Treasury's own gold price per gram: the latest buy and sell price, plus the first of the last 24 hours."""
+    now = datetime.now(timezone(timedelta(hours=7)))  # Jakarta time, as the website sends it
+    fmt = lambda d: d.strftime("%Y-%m-%d %H:%M:%S")  # noqa: E731
+    body = json.dumps(
+        {"start_date": fmt(now - timedelta(days=1)), "end_date": fmt(now), "type": "daily", "region": "id", "assetType": "gold"}
+    ).encode()
+    req = urllib.request.Request(
+        TREASURY_API, data=body, headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (personal finance site)"}
+    )
+    with urllib.request.urlopen(req, timeout=8) as r:
+        prices = json.load(r)["data"]["attributes"]["prices"]
+    first, last = prices[0], prices[-1]
+    return {
+        "TREASURY_BUY": (float(last["buy_price"]), float(first["buy_price"])),
+        "TREASURY_SELL": (float(last["sell_price"]), float(first["sell_price"])),
+    }
+
+
 @app.get("/api/quotes")
 def quotes():
-    """Latest prices from Yahoo Finance (unofficial, via yfinance). Falls back to the last saved price."""
+    """Latest prices: stocks and gold futures from Yahoo Finance (unofficial, via yfinance), gold per gram from Treasury.
+    Falls back to the last saved price."""
     symbols = [s.strip().upper() for s in request.args.get("symbols", "").split(",") if s.strip()]
     refresh = request.args.get("refresh") == "1"
     cache, now, out, updated = _load_quotes(symbols), time.time(), {}, []
+    treasury = None  # one Treasury request fills both its buy and sell price
     for s in symbols:
         c = cache.get(s)
         if c and not refresh and now - c.get("ts", 0) < QUOTE_TTL:
             out[s] = {**c, "stale": False}
             continue
         try:
-            import yfinance as yf
+            if s in ("TREASURY_BUY", "TREASURY_SELL"):
+                treasury = treasury or _treasury_gold()
+                q = {"price": treasury[s][0], "prev": treasury[s][1], "ts": now}
+            else:
+                import yfinance as yf
 
-            if ON_VERCEL:  # the only writable folder on Vercel is the temp folder
-                yf.set_tz_cache_location(os.path.join(tempfile.gettempdir(), "yf-cache"))
-            info = yf.Ticker(s).fast_info
-            q = {"price": float(info["last_price"]), "prev": float(info["previous_close"]), "ts": now}
+                if ON_VERCEL:  # the only writable folder on Vercel is the temp folder
+                    yf.set_tz_cache_location(os.path.join(tempfile.gettempdir(), "yf-cache"))
+                info = yf.Ticker(s).fast_info
+                q = {"price": float(info["last_price"]), "prev": float(info["previous_close"]), "ts": now}
             cache[s] = q
             updated.append(s)
             out[s] = {**q, "stale": False}

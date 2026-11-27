@@ -453,8 +453,11 @@ function marketOpen() {            // IDX trades Mon-Fri, roughly 09:00-16:00 WI
   const w = new Date(Date.now() + 7 * 3600e3), d = w.getUTCDay(), h = w.getUTCHours() + w.getUTCMinutes() / 60;
   return d >= 1 && d <= 5 && h >= 9 && h < 16;
 }
-const TREASURY_FACTOR = 0.998;   // Treasury's sell price was 0.2% under the Yahoo-based spot estimate when checked on 26 Nov 2026
+const TREASURY_FACTOR = 0.998;   // fallback only: Treasury's sell price was 0.2% under the Yahoo-based spot estimate when checked on 26 Nov 2026
+const JAGO_SELL = 0.99701;       // the Bank Jago gold pocket sells at 0.99701 x Treasury's website sell price (measured on 27 Nov 2026, constant over 7 readings)
 function livePrice() {
+  const t = quotes['TREASURY_SELL'];   // Treasury's own sell price per gram, taken from its website
+  if (t && t.price) return Math.round(t.price * JAGO_SELL);
   const g = quotes['GC=F'], fx = quotes['USDIDR=X'];
   if (g && fx && g.price && fx.price) return Math.round(g.price * fx.price / 31.1034768 * TREASURY_FACTOR);
   return S.wealth.gold.lastAuto || 0;
@@ -463,7 +466,7 @@ async function loadQuotes(force) {
   if (typeof S === 'undefined' || !S || !S.wealth) return;
   const hs = S.wealth.stocks.holdings;
   try {
-    const syms = hs.map(h => h.ticker + '.JK').concat(['GC=F', 'USDIDR=X']);
+    const syms = hs.map(h => h.ticker + '.JK').concat(['GC=F', 'USDIDR=X'], GUEST ? [] : ['TREASURY_BUY', 'TREASURY_SELL']);
     const fresh = GUEST ? demoQuotes(syms) : await (await fetch('/api/quotes?symbols=' + syms.join(',') + (force ? '&refresh=1' : ''))).json();
     const before = {...quotes};
     let changed = false;
@@ -498,8 +501,10 @@ function stockCalc() {
       day: q.prev ? (q.price - q.prev) / q.prev * 100 : null};
   });
   const invested = rows.reduce((a, r) => a + r.h.invested, 0), value = rows.reduce((a, r) => a + r.value, 0), pl = value - invested;
-  return {rows, invested, value, pl, ret: invested ? pl / invested * 100 : 0, cash: st.cash, equity: value + st.cash};
+  // Like Stockbit, the overall return is measured on invested + trading balance (each row's return stays on its own invested amount)
+  return {rows, invested, value, pl, ret: invested + st.cash ? pl / (invested + st.cash) * 100 : 0, cash: st.cash, equity: value + st.cash};
 }
+const avgPrice = n => 'IDR ' + (Math.floor(n * 100 + 1e-6) / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});   // 2 decimals, cut off (not rounded) like Stockbit
 const signed = v => v > 0 ? '+' + pc2(v) : v < 0 ? '−' + pc2(Math.abs(v)) : pc2(v);
 const plClass = v => v < 0 ? 'neg' : v > 0 ? 'pos' : '';
 
@@ -532,7 +537,7 @@ function stockPanel(k) {
     ${box('Invested', rp(sc.invested))}
     ${box('Market value', rp(sc.value))}
     ${box('P&L', (sc.pl > 0 ? '+' : '') + rp(sc.pl), plClass(sc.pl))}
-    ${box('Return', signed(sc.ret), plClass(sc.ret))}
+    ${box('Return', signed(sc.ret), plClass(sc.ret), 'On invested + trading balance')}
     ${box('Total equity', rp(sc.equity))}
   </div>
   <div class="grid g3 actions" style="margin-bottom:14px">
@@ -579,7 +584,7 @@ function stockPanel(k) {
         <td><b>${esc(r.h.ticker)}</b><div class="s">${Math.round(r.shares).toLocaleString('en-US')} shares</div></td>
         <td><input type="number" min="0" value="${r.h.lots}" onchange="editHolding(${r.i},'lots',this.value)" style="text-align:right"></td>
         <td><input class="money" inputmode="numeric" autocomplete="off" value="${fm(r.h.invested)}" onchange="editHolding(${r.i},'invested',this.value)" style="text-align:right"></td>
-        <td class="r">${rp(r.avg)}</td>
+        <td class="r">${avgPrice(r.avg)}</td>
         <td class="r ${flash[r.h.ticker + '.JK'] ? 'flash-' + flash[r.h.ticker + '.JK'] : ''}">${r.price != null ? rp(r.price) : '—'}</td>
         <td class="r ${plClass(r.day || 0)}">${r.day != null ? signed(r.day) : '—'}</td>
         <td class="r ${flash[r.h.ticker + '.JK'] ? 'flash-' + flash[r.h.ticker + '.JK'] : ''}"><b>${rp(r.value)}</b></td>
@@ -611,7 +616,7 @@ function goldPanel() {
   const gc = goldCalc(), items = [...S.wealth.gold.items].sort((a, b) => b.date.localeCompare(a.date));
   const box = (label, val, cls = '', sub = '') => `<div class="stat"><div class="s">${label}</div><b class="${cls}">${val}</b>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
   return `
-  <div class="note"><span class="ni">ⓘ</span><div>${GUEST ? 'These values are made up for this demo. The gold price is calculated from simulated gold futures and a simulated USD to IDR rate.' : "These values are estimates. The price is calculated from Yahoo Finance gold futures and the USD to IDR rate, so it can differ slightly from Treasury's own buy and sell prices. Check the Treasury app for your exact figures."}</div></div>
+  <div class="note"><span class="ni">ⓘ</span><div>${GUEST ? 'These values are made up for this demo. The gold price is calculated from simulated gold futures and a simulated USD to IDR rate.' : "These values are estimates. The price comes from the Treasury website and is adjusted to match the Bank Jago gold pocket, so it can differ slightly from your Jago app. Check the Jago app for your exact figures."}</div></div>
   <div class="grid g4" style="margin-bottom:14px">
     ${box('Total grams', gc.grams.toLocaleString('en-US', {maximumFractionDigits: 6}) + ' g')}
     ${box('Invested', rp(gc.paid))}
@@ -628,20 +633,21 @@ function goldPanel() {
   <div class="card">
     <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Gold purchases</div>
       <div class="row" style="margin-left:auto;gap:12px"><span class="s">Today's price per gram</span><b class="price-amt">${gc.price ? rp(gc.price) : 'Loading…'}</b><span class="live on"><i></i>Live</span></div></div>
-    <div class="s" style="margin-bottom:10px">Each new purchase is taken from your cash saving. ${GUEST ? 'The price is simulated for this demo.' : "The live price is estimated from Yahoo Finance gold futures and the USD to IDR rate, matched to Treasury's sell price."}</div>
+    <div class="s" style="margin-bottom:10px">Each new purchase is taken from your cash saving. ${GUEST ? 'The price is simulated for this demo.' : "The live price comes from the Treasury website, adjusted to match the sell price in the Bank Jago gold pocket."}</div>
     <form id="gadd" onsubmit="addGold(event)"></form>
     <table class="crud">
       <tr><th style="width:150px">Date</th><th class="r" style="width:120px">Grams</th><th class="r">Paid</th><th class="r">Price per gram</th><th class="r">Value now</th><th class="r">P&L</th><th>Remarks</th><th style="width:130px"></th></tr>
       <tr class="newrow">
         <td><input form="gadd" type="date" name="date" value="${today()}" required></td>
-        <td><input form="gadd" name="grams" type="number" step="0.000001" min="0.000001" placeholder="Grams" required style="text-align:right"></td>
+        <td class="r s">Calculated</td>
         <td><input form="gadd" name="paid" class="money" inputmode="numeric" autocomplete="off" placeholder="Amount paid" required style="text-align:right"></td>
-        <td colspan="3" class="s">Taken from cash saving</td>
+        <td><input form="gadd" name="price" class="money" inputmode="numeric" autocomplete="off" placeholder="Buy price" required style="text-align:right"></td>
+        <td colspan="2" class="s">Grams = amount ÷ price. Taken from cash saving</td>
         <td><input form="gadd" name="note" placeholder="Remarks"></td>
         <td class="r"><button form="gadd" class="cta inline" style="padding:9px 18px">+ Add</button></td></tr>
       ${items.map(x => { const val = gc.price ? x.grams * gc.price : x.paid; return `<tr>
         <td>${fmtDate(x.date)}</td><td class="r">${x.grams.toLocaleString('en-US', {maximumFractionDigits: 6})} g</td><td class="r">${rp(x.paid)}</td>
-        <td class="r">${rp(x.paid / x.grams)}</td><td class="r"><b>${rp(val)}</b></td>
+        <td><input class="money" inputmode="numeric" autocomplete="off" value="${fm(x.price || x.paid / x.grams)}" onchange="editGoldPrice('${x.id}',this.value)" style="text-align:right"></td><td class="r"><b>${rp(val)}</b></td>
         <td class="r ${plClass(val - x.paid)}"><b>${(val - x.paid > 0 ? '+' : '') + rp(val - x.paid)}</b></td><td>${esc(x.note || '—')}</td>
         <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delGold('${x.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`; }).join('')}
       ${items.length ? '' : '<tr><td colspan="8" class="s" style="text-align:center;padding:22px">No gold purchases yet. Add your first purchase above.</td></tr>'}
@@ -685,17 +691,25 @@ async function delTransfer(id) {
   if (t.type === 'gold' && !t.back) S.wealth.gold.items = S.wealth.gold.items.filter(x => x.id !== t.goldId);
   if (t.type === 'gold' && t.back) (t.cut || []).forEach(c => {   // undo a gold sale: put the grams and their cost back
     const it = S.wealth.gold.items.find(x => x.id === c.id);
-    if (it) { it.grams += c.grams; it.paid += c.paid; } else S.wealth.gold.items.push({id: c.id, date: c.date, grams: c.grams, paid: c.paid, note: c.note || ''});
+    if (it) { it.grams += c.grams; it.paid += c.paid; } else S.wealth.gold.items.push({id: c.id, date: c.date, grams: c.grams, paid: c.paid, price: c.price, note: c.note || ''});
   });
   commit();
 }
+// grams = amount paid / buy price per gram, with the digits after 6 decimals cut off (this reproduces the grams the Jago app shows)
+const gramsFor = (paid, price) => Math.floor(paid / price * 1e6 + 1e-9) / 1e6;
+function editGoldPrice(id, v) {
+  const it = S.wealth.gold.items.find(x => x.id === id), price = num(v);
+  if (!it || !(price > 0)) { render(); return; }
+  it.price = price; it.grams = gramsFor(it.paid, price); commit();
+}
 async function addGold(ev) {
   ev.preventDefault(); const g = n => document.querySelector(`[form=gadd][name=${n}]`);
-  const grams = Number(g('grams').value), paid = num(g('paid').value); if (!grams || !paid) return;
+  const price = num(g('price').value), paid = num(g('paid').value); if (!(price > 0) || !paid) return;
+  const grams = gramsFor(paid, price); if (!grams) return;
   const date = g('date').value, note = g('note').value.trim();   // read before the dialog opens: the page may redraw underneath it
   if (paid > K().total && !(await ask({title: 'More than your cash saving', text: 'This is more than your current cash saving. Continue anyway?', ok: 'Continue'}))) return;
   const id = uid();
-  S.wealth.gold.items.push({id, date, grams, paid, note});
+  S.wealth.gold.items.push({id, date, grams, paid, price, note});
   S.wealth.transfers.push({id: 't' + id, date, type: 'gold', cat: 'Investment', amount: paid, note, goldId: id}); commit();
 }
 async function delGold(id) {
@@ -759,7 +773,7 @@ async function sellGold(ev) {
   [...items].sort((a, b) => a.date.localeCompare(b.date)).forEach(it => {   // oldest purchase first; each sold part takes its share of what was paid
     if (left <= 1e-9) return;
     const take = Math.min(it.grams, left), paid = take >= it.grams ? it.paid : Math.round(it.paid * take / it.grams);
-    cut.push({id: it.id, date: it.date, note: it.note, grams: take, paid}); it.grams -= take; it.paid -= paid; left -= take;
+    cut.push({id: it.id, date: it.date, note: it.note, price: it.price, grams: take, paid}); it.grams -= take; it.paid -= paid; left -= take;
   });
   S.wealth.gold.items = items.filter(x => x.grams > 1e-9);
   S.wealth.transfers.push({id: uid(), date, type: 'gold', back: true, cat: 'Investment', amount: amt, note, grams, cut}); commit();
