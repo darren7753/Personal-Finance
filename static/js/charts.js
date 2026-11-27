@@ -94,7 +94,7 @@ function daysBetween(a, b) {
 const dayLabel = iso => `${Number(iso.slice(8))} ${MONTHS[Number(iso.slice(5, 7)) - 1].slice(0, 3)}`;
 const chartMoney = v => hideNums ? 'IDR ••••••' : rp(v);
 const chartPct = v => hideNums ? '•••%' : pc2(v);
-const labelPct = v => hideNums ? '•••%' : v.toFixed(2) + '%';   // always 2 decimals
+const labelPct = v => hideNums ? '•••%' : v.toFixed(2).replace(/\.00$/, '') + '%';   // 2 decimals, but a whole number drops the .00 (50.00% shows as 50%)
 const compactIdr = v => hideNums ? 'IDR ••••' : 'IDR ' + (v >= 1e6 ? (Math.round(v / 1e4) / 100).toLocaleString('en-US') + 'M' : v >= 1e3 ? Math.round(v / 1e3).toLocaleString('en-US') + 'K' : v);
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const shade = (h, p) => { const f = p >= 0 ? v => Math.round(v + (255 - v) * p) : v => Math.round(v * (1 + p)); const [r, g, b] = hexRgb(h); return `rgb(${f(r)},${f(g)},${f(b)})`; };
