@@ -387,10 +387,73 @@ def quotes():
     return jsonify(out)
 
 
+# ---------- snapshot of the Dashboard diagram (the picture the Telegram bot sends) ----------
+# The browser draws the picture (static/js/snapshot.js) and uploads it here; only the newest one is kept, with the time it
+# was taken and the data revision (`rev`) it shows, so the bot can say when the data has changed since.
+SNAP_PNG = BASE / "data" / "snapshot.png"
+SNAP_META = BASE / "data" / "snapshot.json"
+SNAP_MAX = 3_800_000  # bytes; Vercel refuses request bodies above 4.5 MB
+
+
+def _snap_get(with_png=True):
+    """The saved snapshot as {png, rev, sig, label, taken_at (UTC datetime)}, or None."""
+    from datetime import datetime, timezone
+
+    if DATABASE_URL:
+        cols = "png, rev, sig, label, taken_at" if with_png else "null, rev, sig, label, taken_at"
+        with _db() as conn:
+            row = conn.execute(f"select {cols} from snapshot where id = 1").fetchone()
+        if row is None:
+            return None
+        return {"png": bytes(row[0]) if row[0] is not None else None, "rev": row[1], "sig": row[2], "label": row[3], "taken_at": row[4]}
+    if not (SNAP_META.exists() and SNAP_PNG.exists()):
+        return None
+    m = json.loads(SNAP_META.read_text(encoding="utf-8"))
+    taken = datetime.fromtimestamp(m["taken"], timezone.utc)
+    return {"png": SNAP_PNG.read_bytes() if with_png else None, "rev": m["rev"], "sig": m["sig"], "label": m["label"], "taken_at": taken}
+
+
+def _snap_put(png, rev, sig, label):
+    """Save the picture unless the saved one shows newer data (a higher `rev`). Returns True when saved."""
+    if DATABASE_URL:
+        with _db() as conn:
+            cur = conn.execute(
+                "insert into snapshot (id, png, rev, sig, label, taken_at) values (1, %s, %s, %s, %s, now()) "
+                "on conflict (id) do update set png = excluded.png, rev = excluded.rev, sig = excluded.sig, "
+                "label = excluded.label, taken_at = now() where snapshot.rev <= excluded.rev returning 1",
+                [png, rev, sig, label],
+            )
+            return cur.fetchone() is not None
+    old = _snap_get(with_png=False)
+    if old and old["rev"] > rev:
+        return False
+    SNAP_PNG.parent.mkdir(exist_ok=True)
+    SNAP_PNG.write_bytes(png)
+    SNAP_META.write_text(json.dumps({"rev": rev, "sig": sig, "label": label, "taken": time.time()}), encoding="utf-8")
+    return True
+
+
+@app.put("/api/snapshot")
+def put_snapshot():
+    if (request.content_length or 0) > SNAP_MAX:
+        return jsonify(error="picture too large"), 413
+    png = request.get_data()
+    if not png.startswith(b"\x89PNG\r\n\x1a\n") or len(png) > SNAP_MAX:
+        return jsonify(error="not a PNG picture"), 400
+    ok = _snap_put(png, request.args.get("rev", 0, type=int), request.args.get("sig", "")[:64], request.args.get("label", "")[:60])
+    return jsonify(ok=ok), (200 if ok else 409)
+
+
+@app.get("/api/snapshot/meta")
+def snapshot_meta():
+    s = _snap_get(with_png=False)
+    return jsonify(sig=s["sig"] if s else "", rev=s["rev"] if s else 0, taken_at=s["taken_at"].isoformat() if s else None)
+
+
 # ---------- Telegram bot (spending only; see telegram_bot.py) ----------
 import telegram_bot  # noqa: E402
 
-telegram_bot.configure(_load_state, _save_state, _db if DATABASE_URL else None, BASE, shared_db)
+telegram_bot.configure(_load_state, _save_state, _db if DATABASE_URL else None, BASE, shared_db, _snap_get)
 
 
 @app.post("/telegram/webhook")

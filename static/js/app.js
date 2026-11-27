@@ -112,6 +112,7 @@ function persist() {
     const r = await fetch('/api/state', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(S)});
     if (r.status === 409) { await notify({title: 'Your data changed elsewhere', text: 'Your data was changed in another tab or window. The page will reload to show the latest data.', ok: 'Reload'}); location.reload(); return; }
     const res = await r.json(); S._rev = res.rev;
+    snapSchedule();   // a real edit: refresh the picture the Telegram bot sends (snapshot.js)
   }).catch(() => {});
   return saveChain;
 }
@@ -179,9 +180,12 @@ function applyHide() {
   document.body.classList.toggle('hide-nums', hideNums);
   const eye = $('#eye'); if (eye) { eye.innerHTML = icon(hideNums ? 'eyeclosed' : 'eye', 'regular', 24); eye.setAttribute('aria-label', hideNums ? 'Show numbers' : 'Hide numbers'); }
   if (!hideNums) return;
-  const w = document.createTreeWalker($('#view'), NodeFilter.SHOW_TEXT); let n;
-  while ((n = w.nextNode())) { const m = maskText(n.nodeValue); if (m !== n.nodeValue) n.nodeValue = m; }
+  maskIn($('#view'));
   document.querySelectorAll('#view [data-tip]').forEach(e => { e.dataset.tip = maskText(e.dataset.tip); });
+}
+function maskIn(root) {   // replace every number under `root` with dots (also used on the copied picture)
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
+  while ((n = w.nextNode())) { const m = maskText(n.nodeValue); if (m !== n.nodeValue) n.nodeValue = m; }
 }
 function toggleEye() { hideNums = !hideNums; localStorage.setItem('dfHide', hideNums ? '1' : '0'); render(); }
 
@@ -319,11 +323,11 @@ function fitDiagram() {
 }
 const ARROW = '#7d87a8';   // one neutral colour for every connector arrow
 const RING = {'#ffe9ee': 'red', '#e8f7ec': 'green', '#e3effa': 'blue'};
-function diagram(k) {
+function diagram(k, fixedAvail) {   // fixedAvail: draw at that room (used for the copied / snapshot picture) without touching the on-screen fitting state
   const c = k.c, S = c.salary, env = c.env, sc = stockCalc(), gc = goldCalc();
-  const avail = diagAvail || (($('#view').clientWidth || 1100) - 60);
+  const avail = fixedAvail || diagAvail || (($('#view').clientWidth || 1100) - 60);
   const CG = 28, NH = 80, LV = 50, NW = nwFor(avail), G = '#0a9d58', PAD = DPAD;
-  lastNW = NW;
+  if (!fixedAvail) lastNW = NW;
   const pct = v => pc2(v / S * 100) + ' of salary';
   const X = i => PAD + i * (NW + CG);           // col 0-1 = saving + investments, 1 = fixed, 2-4 = budgets
   const Wd = PAD + 5 * NW + 4 * CG;
@@ -347,7 +351,7 @@ function diagram(k) {
   const cash = add({id: 'cash', cx: cashCx, y: Y[1], w: NW, title: `${pc2(c.savePct)} to cash saving`, sub: pct(k.save), amt: k.save, color: BANK.bca, bg: '#e3effa'});
   const rem = add({id: 'rem', cx: remCx, y: Y[1], w: remW, title: 'Remaining', sub: `${pc2(100 - c.savePct)} of salary`, amt: k.afterSave, color: BANK.bca, bg: '#e3effa'});
   // Cash saving is as wide as Stocks and Gold together, so the arrows to them run straight down from it
-  const GAP2 = 12, savW = 2 * NW + GAP2, savH = 66 + 14 * 6 + 16, busY = Y[4] + NH + 56;      // Stocks and Gold sit close together; the lines from the budgets all end at the middle of the node's right edge
+  const GAP2 = 12, savW = 2 * NW + GAP2, savH = 70 + 14 * 6 + 16, busY = Y[4] + NH + 56;      // Stocks and Gold sit close together; the lines from the budgets all end at the middle of the node's right edge
   const sav = add({id: 'sav', cx: X(0) + savW / 2, y: busY - savH / 2, w: savW, h: savH, title: 'Cash saving', color: BANK.jago, bg: BANK.jago, fg: '#1a1a1a', logo: 'jago', amt: k.total,
     lines: [['Previous savings', rp(k.prev)], [`${pc2(c.savePct)} of ${c.label} salary`, inflow(k.save)], ['Leftovers moved in', inflow(k.moved)],
       ['Moved to investments', outflow(k.transferred)], ['Moved from investments', inflow(k.returned)], ['Other spending', outflow(k.other)]]});
@@ -430,7 +434,7 @@ function dash(k) {
     <div class="pocket total"><div class="row">${tile('diamond', 'navy')}<div><div class="name">Total wealth</div></div></div><div class="big-num">${rp(wealthTotal)}</div></div>
   </div>
   <h2>Where your salary goes <span class="s">Log real expenses on the Spending page</span></h2>
-  <div class="card funnelcard">${diagram(k)}</div>
+  <div class="fcwrap"><div class="card funnelcard">${diagram(k)}</div><button type="button" class="ib snapb" data-tip="Copy as image" aria-label="Copy as image" onclick="copyDiagramImage(this)">${icon('imagecopy', 'regular', 20)}</button></div>
   ${chartSection()}`;
 }
 
@@ -1233,6 +1237,7 @@ $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
   render();
   document.documentElement.classList.remove('booting'); const bl = document.getElementById('boot'); if (bl) bl.remove();
   schedulePoll(); scheduleGoldPoll(); connectGoldFeed();
+  snapSchedule(8000);   // a fresh picture for the Telegram bot, a few seconds after the page is shown (only uploaded when the numbers changed)
 })();
 
 

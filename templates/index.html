@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#eef1f9">
 <title>Darren's Finance</title>
 <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet" crossorigin="anonymous">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body{% if guest %} data-guest="1"{% endif %}>
@@ -37,6 +37,8 @@
 <script src="{{ url_for('static', filename='js/demo.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/html-to-image.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/snapshot.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

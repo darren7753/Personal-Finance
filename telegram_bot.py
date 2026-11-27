@@ -31,12 +31,13 @@ class BotError(Exception):
     """A problem to show to the user as a normal message."""
 
 
-def configure(load, save, db, base, shared=None):
+def configure(load, save, db, base, shared=None, snap=None):
     """load/save are app.py's `_load_state` / `_save_state`; db is its `_db` (or None when running on local files);
-    shared is a context manager that makes all database calls inside it use one connection."""
+    shared is a context manager that makes all database calls inside it use one connection;
+    snap is app.py's `_snap_get` (the latest Dashboard picture uploaded by the website)."""
     cats = json.loads((base / "static" / "categories.json").read_text(encoding="utf-8"))["cats"]
     _cfg.update(
-        load=load, save=save, db=db, base=base, cats=cats, shared=shared or contextlib.nullcontext,
+        load=load, save=save, db=db, base=base, cats=cats, shared=shared or contextlib.nullcontext, snap=snap,
         token=os.environ.get("TELEGRAM_BOT_TOKEN", "").strip(),
         allowed={int(x) for x in re.findall(r"\d+", os.environ.get("TELEGRAM_ALLOWED_IDS", ""))},
     )
@@ -64,6 +65,30 @@ def api(method, **params):
     )
     try:
         with urllib.request.urlopen(req, timeout=25) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        try:
+            return json.load(e)
+        except Exception:
+            return {"ok": False}
+    except Exception:
+        return {"ok": False}
+
+
+def api_upload(method, fields, name, filename, data, mime):
+    """Send a file to Telegram (multipart form). `fields` are the ordinary text fields."""
+    boundary = "df" + hashlib.md5(os.urandom(16)).hexdigest()
+    body = b""
+    for k, v in fields.items():
+        body += f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
+    body += f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; filename="{filename}"\r\nContent-Type: {mime}\r\n\r\n'.encode()
+    body += data + f"\r\n--{boundary}--\r\n".encode()
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{_cfg['token']}/{method}", data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
         try:
@@ -211,7 +236,7 @@ def pend_set(chat, p):
 def ui_menu(s, note=""):
     c = latest(s)
     text = (note + "\n\n" if note else "") + f"<b>Darren's Finance</b>\nCycle: {esc(c['label'])}\nWhat do you want to do?"
-    return text, [[("Add spending", "a")], [("View, edit or delete", "l")]]
+    return text, [[("Add spending", "a")], [("View, edit or delete", "l")], [("Finance summary", "s")]]
 
 
 def ui_budgets(s, action, title):
@@ -367,6 +392,30 @@ def ui_saved(s, p, e):
     return text, [[("Add another", "a"), (f"View {e['name']}", f"l:{p['key']}")], [("Menu", "m")]]
 
 
+# ---------- finance summary: the picture of the Dashboard diagram that the website uploaded ----------
+def send_summary(chat, as_file=False):
+    """Send the latest picture with the time it was taken (Jakarta time). The picture comes from the website (it draws it in the browser),
+    so it is only as new as the last time the website was open; the caption says so when the data has changed since."""
+    snap = _cfg["snap"]() if _cfg.get("snap") else None
+    if not snap or not snap["png"]:
+        api("sendMessage", chat_id=chat, text="There is no summary picture yet. Open the website once; the picture is made and saved automatically.",
+            reply_markup=_markup([[("Menu", "m")]]))
+        return
+    s = _cfg["load"]()
+    taken = snap["taken_at"].astimezone(WIB)
+    caption = f"<b>Finance summary</b> · {esc(snap['label'])}\nTaken {fdate(taken.date().isoformat())}, {taken:%H:%M}"
+    if s is not None and s.get("_rev", 0) > snap["rev"]:
+        caption += "\n\nYour data has changed since this picture was taken. Open the website to refresh it."
+    rows = [[("Menu", "m")] if as_file else [("Full size file", "sf"), ("Menu", "m")]]
+    fields = {"chat_id": chat, "caption": caption, "parse_mode": "HTML", "reply_markup": json.dumps(_markup(rows))}
+    if as_file:
+        r = api_upload("sendDocument", fields, "document", "finance-summary.png", snap["png"], "image/png")
+    else:
+        r = api_upload("sendPhoto", fields, "photo", "finance-summary.png", snap["png"], "image/png")
+    if not r.get("ok"):
+        api("sendMessage", chat_id=chat, text="I could not send the picture. Please try again.", reply_markup=_markup([[("Menu", "m")]]))
+
+
 # ---------- actions ----------
 def save_new(chat, p):
     def fn(s):
@@ -417,6 +466,9 @@ def on_callback(chat, mid, data):
     if op == "m":
         pend_set(chat, None)
         return ui_menu(s)
+    if op in ("s", "sf"):   # finance summary picture (sends its own message, so there is no screen to show)
+        send_summary(chat, as_file=op == "sf")
+        return None
     if op == "a":   # start adding: choose the budget first
         pend_set(chat, None)
         return ui_budgets(s, "ab", "<b>Add spending</b>\nWhich budget?")
@@ -498,6 +550,9 @@ def on_text(chat, text):
     if cmd in ("/start", "/menu"):
         pend_set(chat, None)
         return ui_menu(s)
+    if cmd == "/summary":
+        send_summary(chat)
+        return None
     if cmd == "/cancel":
         pend_set(chat, None)
         return ui_menu(s, "Cancelled.")

@@ -26,6 +26,7 @@ def main():
     if cmd == "setup":
         bot.api("setMyCommands", commands=[
             {"command": "menu", "description": "Show the main menu"},
+            {"command": "summary", "description": "Send the finance summary picture"},
             {"command": "cancel", "description": "Cancel what you are doing"},
             {"command": "help", "description": "How to use this bot"},
         ])
