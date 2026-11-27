@@ -318,7 +318,7 @@ function decorateDiagram() {
 function fitDiagram() {
   const card = document.querySelector('.funnelcard'); if (!card || tab !== 'dash') return;
   const cs = getComputedStyle(card), avail = card.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); if (avail <= 0) return;
-  diagAvail = avail;
+  diagAvail = avail; snapCardW = card.getBoundingClientRect().width;   // the picture (snapshot.js) uses the same card width
   if (nwFor(avail) !== lastNW) { card.innerHTML = diagram(K()); decorateDiagram(); }
 }
 const ARROW = '#7d87a8';   // one neutral colour for every connector arrow
@@ -434,7 +434,7 @@ function dash(k) {
     <div class="pocket total"><div class="row">${tile('diamond', 'navy')}<div><div class="name">Total wealth</div></div></div><div class="big-num">${rp(wealthTotal)}</div></div>
   </div>
   <h2>Where your salary goes <span class="s">Log real expenses on the Spending page</span></h2>
-  <div class="fcwrap"><div class="card funnelcard">${diagram(k)}</div><button type="button" class="ib snapb" data-tip="Copy as image" aria-label="Copy as image" onclick="copyDiagramImage(this)">${icon('imagecopy', 'regular', 24)}</button></div>
+  <div class="fcwrap"><div class="card funnelcard">${diagram(k)}</div><button type="button" class="ib snapb" data-tip="Copy as image" aria-label="Copy as image" onclick="copyDiagramImage(this)">${icon('copy', 'regular', 24)}</button></div>
   ${chartSection()}`;
 }
 

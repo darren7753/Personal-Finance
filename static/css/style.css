@@ -810,7 +810,7 @@ th,th.r{text-align:center}
 .snapb.ok{color:#0a9d58;background:rgba(10,157,88,.13)}
 .snapb.busy{opacity:.45;pointer-events:none}
 /* the picture itself: the diagram card on the page gradient, drawn off-screen so it looks the same on every screen */
-.snapbg{width:max-content;padding:24px;background-color:#eef1f9;font-family:'Nunito',system-ui,sans-serif;color:var(--ink);font-weight:700;
+.snapbg{width:max-content;padding:0;background-color:#eef1f9;font-family:'Nunito',system-ui,sans-serif;color:var(--ink);font-weight:700;
   background-image:radial-gradient(900px 600px at 6% -5%,rgba(255,176,32,.60),transparent 62%),radial-gradient(800px 600px at 96% 4%,rgba(0,174,213,.48),transparent 62%),radial-gradient(1000px 700px at 75% 108%,rgba(0,96,175,.38),transparent 62%),radial-gradient(700px 500px at -4% 92%,rgba(255,107,139,.38),transparent 62%)}
 .snapbg .funnelcard{overflow:visible}
 /* the title inside a node must never be squeezed (Cash saving's title lost the bottom of the "g" because the tall node shrank it) */

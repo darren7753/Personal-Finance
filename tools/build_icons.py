@@ -11,7 +11,7 @@ ICONS = {  # key -> Fluent folder name
     'trending': 'Arrow Trending', 'washer': 'Washer', 'edit': 'Edit', 'trash': 'Delete', 'eraser': 'Eraser', 'chevleft': 'Chevron Left', 'calendar': 'Calendar', 'save': 'Save', 'undo': 'Arrow Undo', 'refresh': 'Arrow Clockwise', 'open': 'Open', 'dismiss': 'Dismiss', 'pdf': 'Document PDF', 'box': 'Box', 'calday': 'Calendar Day', 'balloon': 'Balloon', 'savings': 'Savings',
     'receipt': 'Receipt', 'moneyhand': 'Money Hand', 'diamond': 'Diamond', 'calclock': 'Calendar Clock',
     'databar': 'Data Bar Vertical', 'calculator': 'Calculator', 'check': 'Checkmark Circle', 'warning': 'Warning',
-    'chevright': 'Chevron Right', 'imagecopy': 'Image Copy', 'chevdown': 'Chevron Down', 'eye': 'Eye', 'eyeoff': 'Eye Off', 'signout': 'Sign Out',
+    'chevright': 'Chevron Right', 'copy': 'Copy', 'chevdown': 'Chevron Down', 'eye': 'Eye', 'eyeoff': 'Eye Off', 'signout': 'Sign Out',
 }
 
 def fetch(url):
