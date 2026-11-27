@@ -652,7 +652,7 @@ function goldPanel() {
     <div class="s" style="margin-bottom:10px">Each new purchase is taken from your cash saving. ${GUEST ? 'The price is simulated for this demo.' : GOLD_INFO[goldSource()].src + '.'}</div>
     <form id="gadd" onsubmit="addGold(event)"></form>
     <table class="crud">
-      <tr><th style="width:150px">Date</th><th class="r" style="width:120px">Grams</th><th class="r">Paid</th><th class="r" style="width:180px">Price per gram</th><th class="r">Value now</th><th class="r">P&L</th><th>Remarks</th><th style="width:130px"></th></tr>
+      <tr><th style="width:150px">Date</th><th class="r" style="width:120px">Grams</th><th class="r">Paid</th><th class="r">Price per gram</th><th class="r">Value now</th><th class="r">P&L</th><th>Remarks</th><th style="width:130px"></th></tr>
       <tr class="newrow">
         <td><input form="gadd" type="date" name="date" value="${today()}" required></td>
         <td class="r s">Calculated</td>
@@ -663,7 +663,7 @@ function goldPanel() {
         <td class="r"><button form="gadd" class="cta inline" style="padding:9px 18px">+ Add</button></td></tr>
       ${items.map(x => { const val = gc.price ? x.grams * gc.price : x.paid; return `<tr>
         <td>${fmtDate(x.date)}</td><td class="r">${x.grams.toLocaleString('en-US', {maximumFractionDigits: 6})} g</td><td class="r">${rp(x.paid)}</td>
-        <td><input class="money" inputmode="numeric" autocomplete="off" value="${fm(x.price || x.paid / x.grams)}" onchange="editGoldPrice('${x.id}',this.value)" style="text-align:right"></td><td class="r"><b>${rp(val)}</b></td>
+        <td class="r">${rp(x.price || x.paid / x.grams)}</td><td class="r"><b>${rp(val)}</b></td>
         <td class="r ${plClass(val - x.paid)}"><b>${(val - x.paid > 0 ? '+' : '') + rp(val - x.paid)}</b></td><td>${esc(x.note || '—')}</td>
         <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delGold('${x.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`; }).join('')}
       ${items.length ? '' : '<tr><td colspan="8" class="s" style="text-align:center;padding:22px">No gold purchases yet. Add your first purchase above.</td></tr>'}
@@ -713,11 +713,6 @@ async function delTransfer(id) {
 }
 // grams = amount paid / buy price per gram, with the digits after 6 decimals cut off (this reproduces the grams the Jago app shows)
 const gramsFor = (paid, price) => Math.floor(paid / price * 1e6 + 1e-9) / 1e6;
-function editGoldPrice(id, v) {
-  const it = S.wealth.gold.items.find(x => x.id === id), price = num(v);
-  if (!it || !(price > 0)) { render(); return; }
-  it.price = price; it.grams = gramsFor(it.paid, price); commit();
-}
 async function addGold(ev) {
   ev.preventDefault(); const g = n => document.querySelector(`[form=gadd][name=${n}]`);
   const price = num(g('price').value), paid = num(g('paid').value); if (!(price > 0) || !paid) return;
