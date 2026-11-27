@@ -3,7 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Sign in - Darren's Finance</title>
+<title>darren's finance</title>
+<meta name="description" content="Salary, spending and wealth in one place">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="darren's finance">
+<meta property="og:title" content="darren's finance">
+<meta property="og:description" content="Salary, spending and wealth in one place">
+<meta property="og:image" content="{{ url_for('static', filename='share.png', _external=True) }}">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
@@ -30,7 +40,7 @@
 </head>
 <body>
 <div class="login">
-  <h1>Darren's <span style="color:var(--orange-d)">Finance</span></h1>
+  <h1>darren's <span style="color:var(--orange-d)">finance</span></h1>
   <p>{% if google and password %}Sign in to continue.{% elif google %}Sign in with Google to continue.{% else %}Enter your password to continue.{% endif %}</p>
   {% if error == 'denied' %}<div class="err">This Google account is not allowed to use this site.</div>
   {% elif error == 'google' %}<div class="err">Google sign-in did not complete. Please try again.</div>
