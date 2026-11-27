@@ -1245,7 +1245,14 @@ $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
 (() => {
   const tip = document.createElement('div'); tip.id = 'tip'; document.body.appendChild(tip);
   let timer = null, current = null;
-  const place = ev => { const x = Math.min(ev.clientX + 14, innerWidth - tip.offsetWidth - 12), y = ev.clientY + 18 + tip.offsetHeight > innerHeight ? ev.clientY - tip.offsetHeight - 12 : ev.clientY + 18; tip.style.left = Math.max(8, x) + 'px'; tip.style.top = y + 'px'; };
+  const place = ev => {
+    tip.style.left = '0px'; tip.style.top = '0px';   // measure it at its natural width: a fixed box next to the right edge would otherwise wrap its text
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = ev.clientX + 14, y = ev.clientY + 18;
+    if (x + w + 12 > innerWidth) x = ev.clientX - 14 - w;     // no room on the right of the cursor: put it on the left
+    if (y + h + 12 > innerHeight) y = ev.clientY - h - 12;    // no room below: put it above
+    tip.style.left = Math.max(8, x) + 'px'; tip.style.top = Math.max(8, y) + 'px';
+  };
   document.addEventListener('mouseover', ev => {
     const el = ev.target.closest && ev.target.closest('[data-tip]'); if (el === current) return;
     current = el; clearTimeout(timer); tip.classList.remove('show');
