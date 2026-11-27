@@ -344,9 +344,11 @@ def _treasury_gold():
     with urllib.request.urlopen(req, timeout=8) as r:
         prices = json.load(r)["data"]["attributes"]["prices"]
     first, last = prices[0], prices[-1]
+    # Treasury stamps each price with its own time, like "27/11/26 - 20:14" (Jakarta time); it only publishes a new one every few minutes
+    asof = datetime.strptime(last["datetime"], "%d/%m/%y - %H:%M").replace(tzinfo=timezone(timedelta(hours=7))).timestamp()
     return {
-        "TREASURY_BUY": (float(last["buy_price"]), float(first["buy_price"])),
-        "TREASURY_SELL": (float(last["sell_price"]), float(first["sell_price"])),
+        "TREASURY_BUY": (float(last["buy_price"]), float(first["buy_price"]), asof),
+        "TREASURY_SELL": (float(last["sell_price"]), float(first["sell_price"]), asof),
     }
 
 
@@ -366,7 +368,8 @@ def quotes():
         try:
             if s in ("TREASURY_BUY", "TREASURY_SELL"):
                 treasury = treasury or _treasury_gold()
-                q = {"price": treasury[s][0], "prev": treasury[s][1], "ts": now}
+                # ts is the time Treasury stamped on the price (not now), so the page can show it; it also means Treasury is asked again on every call
+                q = {"price": treasury[s][0], "prev": treasury[s][1], "ts": treasury[s][2]}
             else:
                 import yfinance as yf
 

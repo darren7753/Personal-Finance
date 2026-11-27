@@ -454,7 +454,6 @@ function marketOpen() {            // IDX trades Mon-Fri, roughly 09:00-16:00 WI
   return d >= 1 && d <= 5 && h >= 9 && h < 16;
 }
 const TREASURY_FACTOR = 0.998;   // fallback only: Treasury's sell price was 0.2% under the Yahoo-based spot estimate when checked on 26 Nov 2026
-const JAGO_SELL = 0.99701;       // the Bank Jago gold pocket sells at 0.99701 x Treasury's website sell price (measured on 27 Nov 2026, constant over 7 readings)
 // Where the gold price comes from right now: 'treasury' (Treasury website, fresh), 'yahoo' (Treasury failed, so a Yahoo estimate), or 'saved' (nothing loaded, last saved price)
 function goldSource() {
   const t = quotes['TREASURY_SELL'], g = quotes['GC=F'], fx = quotes['USDIDR=X'];
@@ -464,26 +463,29 @@ function goldSource() {
 }
 function livePrice() {
   const src = goldSource();
-  if (src === 'treasury') return Math.round(quotes['TREASURY_SELL'].price * JAGO_SELL);   // Treasury's own sell price per gram, adjusted to the Jago pocket
-  if (src === 'yahoo') return Math.round(quotes['GC=F'].price * quotes['USDIDR=X'].price / 31.1034768 * TREASURY_FACTOR * JAGO_SELL);
+  if (src === 'treasury') return Math.round(quotes['TREASURY_SELL'].price);   // Treasury's own sell price per gram, used as it is
+  if (src === 'yahoo') return Math.round(quotes['GC=F'].price * quotes['USDIDR=X'].price / 31.1034768 * TREASURY_FACTOR);
   return S.wealth.gold.lastAuto || 0;
 }
-const JAGO_BUY = 0.996993;       // the Jago pocket buys at 0.996993 x Treasury's website buy price (same measurement)
 function goldBuyPrice() {         // only known when Treasury's own buy price loaded; the Yahoo estimate has no buy side
   const b = quotes['TREASURY_BUY'];
-  return goldSource() === 'treasury' && b && b.price ? Math.round(b.price * JAGO_BUY) : null;
+  return goldSource() === 'treasury' && b && b.price ? Math.round(b.price) : null;
 }
 const GOLD_INFO = {   // the note and the source label for each of the three cases
-  treasury: {src: 'Treasury website, adjusted to Bank Jago', note: 'These values are estimates. The gold price comes directly from the Treasury website and is adjusted to match the Bank Jago gold pocket, so it can differ slightly from your Jago app. Check the Jago app for your exact figures.'},
-  yahoo: {src: 'Yahoo Finance gold futures (Treasury is unavailable)', note: "These values are estimates. Treasury's price could not be loaded, so the gold price is estimated from Yahoo Finance gold futures and the USD to IDR rate. It can be off by about 1% from your Jago app. Check the Jago app for your exact figures."},
+  treasury: {src: 'Treasury website', note: 'These values are estimates. The gold price comes directly from the Treasury website. The Bank Jago gold pocket shows a slightly lower price (about 0.3%), so the numbers can differ a little from your Jago app. Check the Jago app for your exact figures.'},
+  yahoo: {src: 'Yahoo Finance gold futures (Treasury is unavailable)', note: "These values are estimates. Treasury's price could not be loaded, so the gold price is estimated from Yahoo Finance gold futures and the USD to IDR rate. It can be off by about 1% from the Treasury price. Check the Jago app for your exact figures."},
   saved: {src: 'Last saved price (no live price available)', note: 'These values are estimates. No live gold price could be loaded, so the last saved price is shown. Check the Jago app for your exact figures.'},
 };
-async function loadQuotes(force) {
+const GOLD_SYMS = ['TREASURY_BUY', 'TREASURY_SELL'];
+let goldAt = 0;   // when the gold price was last checked (gold has its own faster check, so it is not the same as quotesAt)
+async function loadQuotes(force, only) {   // only: a short list of symbols to refresh (the gold check), leaving the stock prices alone
   if (typeof S === 'undefined' || !S || !S.wealth) return;
   const hs = S.wealth.stocks.holdings;
   try {
-    const syms = hs.map(h => h.ticker + '.JK').concat(['GC=F', 'USDIDR=X'], GUEST ? [] : ['TREASURY_BUY', 'TREASURY_SELL']);
+    const syms = only || hs.map(h => h.ticker + '.JK').concat(['GC=F', 'USDIDR=X'], GUEST ? [] : GOLD_SYMS);
     const fresh = GUEST ? demoQuotes(syms) : await (await fetch('/api/quotes?symbols=' + syms.join(',') + (force ? '&refresh=1' : ''))).json();
+    // the live Treasury feed (below) can already hold a newer gold price than this slower check returned: keep the newer one
+    if (!GUEST) GOLD_SYMS.forEach(s => { const o = quotes[s]; if (o && fresh[s] && !o.stale && o.ts > fresh[s].ts) fresh[s] = o; });
     const before = {...quotes};
     let changed = false;
     Object.keys(fresh).forEach(s => {
@@ -491,16 +493,54 @@ async function loadQuotes(force) {
       if (o && n.price != null && o.price != null && n.price !== o.price) {
         flash[s] = n.price > o.price ? 'up' : 'down'; changed = true; setTimeout(() => { delete flash[s]; }, 1600);
       }
-      if (!o || o.stale !== n.stale) changed = true;
+      if (!o || o.stale !== n.stale || (GOLD_SYMS.includes(s) && n.ts !== o.ts)) changed = true;   // a new Treasury price time also redraws
     });
-    quotes = fresh; quotesAt = Date.now();
+    quotes = only ? {...quotes, ...fresh} : fresh;
+    if (!only) quotesAt = Date.now();
+    if (!GUEST) goldAt = Date.now();
     hs.forEach(h => { const q = quotes[h.ticker + '.JK']; if (q && q.price != null) h.lastValue = Math.round(h.lots * 100 * q.price); });
     const lp = livePrice(); if (lp && lp !== S.wealth.gold.lastAuto) { S.wealth.gold.lastAuto = lp; changed = true; }
     // prices are NOT saved: they are re-fetched on every load, and saving them made two open devices fight over the data (409 "changed elsewhere")
     const typing = /^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement || {}).tagName);
     if (tab === 'wealth' && !typing && (changed || !before || !Object.keys(before).length)) render();
-    else { const el = document.getElementById('quoteTime'); if (el) el.textContent = new Date().toLocaleTimeString('en-GB'); }
+    else { const el = document.getElementById('quoteTime'); if (el && (!only || wealthTab === 'gold')) el.textContent = new Date().toLocaleTimeString('en-GB'); }
   } catch (e) { /* offline: keep last known values */ }
+}
+// Gold is not tied to the stock market hours, so it is checked every 15 seconds at any hour. That check only has a price every 5 minutes,
+// so the live feed below gives the newest one.
+function scheduleGoldPoll() {
+  setTimeout(async () => { if (!document.hidden && !GUEST) await loadQuotes(false, GOLD_SYMS); scheduleGoldPoll(); }, 15000);
+}
+// Treasury's own website gets a new gold price every minute through a live feed (a public Pusher channel); this listens to the same feed
+const GOLD_FEED = 'wss://ws-ap1.pusher.com/app/52e99bd2c3c42e577e13?protocol=7&client=js&version=8.0.0&flash=false';
+let goldSocket = null;
+function connectGoldFeed() {
+  if (GUEST || goldSocket || typeof WebSocket === 'undefined') return;
+  let ws; try { ws = new WebSocket(GOLD_FEED); } catch (e) { return; }
+  goldSocket = ws;
+  ws.onmessage = ev => {
+    let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+    if (m.event === 'pusher:connection_established') ws.send(JSON.stringify({event: 'pusher:subscribe', data: {channel: 'gold-rate'}}));
+    else if (m.event === 'pusher:ping') ws.send(JSON.stringify({event: 'pusher:pong', data: {}}));
+    else if (m.event === 'gold-rate-event') { try { onGoldFeed(JSON.parse(m.data)); } catch (e) { /* ignore a bad message */ } }
+  };
+  ws.onclose = () => { goldSocket = null; setTimeout(connectGoldFeed, 10000); };   // reconnect after a drop
+  ws.onerror = () => { try { ws.close(); } catch (e) { /* already closed */ } };
+}
+function onGoldFeed(d) {
+  const num = s => Number(String(s).replace(/\./g, '')), buy = num(d.buying_rate), sell = num(d.selling_rate);
+  const ts = Date.parse(String(d.created_at).replace(' ', 'T') + '+07:00') / 1000;   // Treasury sends Jakarta time
+  if (!(buy > 0 && sell > 0 && ts > 0)) return;
+  const ob = quotes['TREASURY_BUY'] || {}, os = quotes['TREASURY_SELL'] || {};
+  if (os.ts && os.ts >= ts && !os.stale) return;   // not newer than what is already shown
+  quotes['TREASURY_BUY'] = {price: buy, prev: ob.prev != null ? ob.prev : buy, ts, stale: false};
+  quotes['TREASURY_SELL'] = {price: sell, prev: os.prev != null ? os.prev : sell, ts, stale: false};
+  goldAt = Date.now();
+  if (typeof S === 'undefined' || !S || !S.wealth) return;   // the page data is not loaded yet
+  const lp = livePrice(); if (lp && lp !== S.wealth.gold.lastAuto) S.wealth.gold.lastAuto = lp;
+  const typing = /^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement || {}).tagName);
+  if (tab === 'wealth' && !typing) render();
+  else { const el = document.getElementById('quoteTime'); if (el && wealthTab === 'gold') el.textContent = new Date().toLocaleTimeString('en-GB'); }
 }
 // poll often while the market is open, slowly when it is closed, and not at all while the tab is hidden
 function schedulePoll() {
@@ -636,7 +676,7 @@ function goldPanel() {
   <div class="grid g4" style="margin-bottom:14px">
     ${box('Total grams', gc.grams.toLocaleString('en-US', {maximumFractionDigits: 6}) + ' g')}
     ${box('Invested', rp(gc.paid))}
-    ${box('Value now', rp(gc.value), '', gc.price ? (GUEST ? 'Simulated price' : goldSource() === 'treasury' ? 'Treasury, adjusted to Bank Jago' : goldSource() === 'yahoo' ? 'Yahoo Finance estimate' : 'Last saved price') : 'Loading price…')}
+    ${box('Value now', rp(gc.value), '', gc.price ? (GUEST ? 'Simulated price' : goldSource() === 'treasury' ? 'Treasury website' : goldSource() === 'yahoo' ? 'Yahoo Finance estimate' : 'Last saved price') : 'Loading price…')}
     ${box('P&L', (gc.pl > 0 ? '+' : '') + rp(gc.pl) + ' (' + signed(gc.ret) + ')', plClass(gc.pl))}
   </div>
   <div class="card" style="margin-bottom:14px">
@@ -648,7 +688,7 @@ function goldPanel() {
   </div>
   <div class="card">
     <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Gold purchases</div>
-      <div class="s" style="margin-left:auto;display:flex;align-items:center;gap:10px"><span class="live on"><i></i>Live</span>${GUEST ? 'Simulated prices' : GOLD_INFO[goldSource()].src} · updated <span id="quoteTime">${quotesAt ? new Date(quotesAt).toLocaleTimeString('en-GB') : ''}</span><button class="ib edit sm" data-tip="Refresh prices" aria-label="Refresh prices" onclick="loadQuotes(true).then(render)">${icon('refresh', 'regular', 16)}</button></div></div>
+      <div class="s" style="margin-left:auto;display:flex;align-items:center;gap:10px"><span class="live on"><i></i>Live</span>${GUEST ? 'Simulated prices' : GOLD_INFO[goldSource()].src + (goldSource() === 'treasury' ? ', price from ' + new Date(quotes['TREASURY_SELL'].ts * 1000).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta'}) : '')} · updated <span id="quoteTime">${(goldAt || quotesAt) ? new Date(goldAt || quotesAt).toLocaleTimeString('en-GB') : ''}</span><button class="ib edit sm" data-tip="Refresh prices" aria-label="Refresh prices" onclick="loadQuotes(true).then(render)">${icon('refresh', 'regular', 16)}</button></div></div>
     <div class="row" style="margin-bottom:10px;gap:12px"><div class="s">Each new purchase is taken from your cash saving.</div>
       <div class="row" style="margin-left:auto;gap:12px">${goldBuyPrice() ? `<span class="s">Buy price per gram</span><b class="price-amt">${rp(goldBuyPrice())}</b>` : ''}<span class="s">Sell price per gram</span><b class="price-amt">${gc.price ? rp(gc.price) : 'Loading…'}</b></div></div>
     <form id="gadd" onsubmit="addGold(event)"></form>
@@ -1192,7 +1232,7 @@ $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
   if (dirty) persist();
   render();
   document.documentElement.classList.remove('booting'); const bl = document.getElementById('boot'); if (bl) bl.remove();
-  schedulePoll();
+  schedulePoll(); scheduleGoldPoll(); connectGoldFeed();
 })();
 
 
