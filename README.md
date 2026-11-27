@@ -60,7 +60,7 @@ flowchart LR
     F --> D3
     F --> D4
     F -- "yfinance" --> Y
-    G -- "push to main deploys automatically" --> vercel
+    G -- "push to main deploys automatically" --> F
 
     classDef app fill:#fff4e0,stroke:#e08a00,color:#222
     classDef data fill:#e6f0ff,stroke:#0060af,color:#222
