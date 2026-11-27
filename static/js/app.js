@@ -287,7 +287,7 @@ function enhanceDates() {
 document.addEventListener('click', e => { if (csMenu && !csMenu.contains(e.target)) csClose(); });
 let csW = innerWidth;   // phones fire `resize` when the keyboard or address bar moves; only a width change should close the menu
 addEventListener('resize', () => { if (innerWidth !== csW) { csW = innerWidth; csClose(); } });
-addEventListener('scroll', e => { if (csMenu && e.target instanceof Node && csMenu.contains(e.target)) return; csClose(); }, true);
+addEventListener('scroll', e => { if (csMenu && e.target instanceof Node && (csMenu.contains(e.target) || e.target.id === 'trendScroll')) return; csClose(); }, true);
 function countUp(el) {
   const m = el.textContent.trim().match(/^(−?)IDR ([\d,]+)$/); if (!m) return;
   const target = Number(m[2].replace(/,/g, '')), sign = m[1], t0 = performance.now(), dur = 900;
@@ -1135,7 +1135,7 @@ document.querySelectorAll('.side-foot').forEach(f => f.addEventListener('submit'
   e.preventDefault();
   const yes = await ask(GUEST ? {title: 'Exit the demo?', text: 'The random demo data will be gone.', ok: 'Exit demo', danger: true, icon: 'signout'}
                               : {title: 'Log out?', text: 'You will need to sign in again.', ok: 'Log out', danger: true, icon: 'signout'});
-  if (yes) f.submit();   // submit() does not fire this handler again
+  if (yes) { CHART_KEYS.forEach(k => localStorage.removeItem(k)); f.submit(); }   // the remembered chart choices end with the session; submit() does not fire this handler again
 }));
 document.querySelectorAll('.logout').forEach(b => b.insertAdjacentHTML('afterbegin', `<span class="logic">${icon('signout', 'regular', 20)}</span>`));
 $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };

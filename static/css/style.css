@@ -784,3 +784,22 @@ th,th.r{text-align:center}
 #chartTip tr.tot td{padding-top:6px;border-top:1px solid rgba(255,255,255,.15);font-weight:900}
 #chartTip tr.cap td{color:#ff8fa5}
 #chartTip .ct-none{color:rgba(255,255,255,.7)}
+/* ===== spending filter: multi-select with checkboxes ===== */
+.ms .ms-opt{gap:11px}
+.ms .ms-opt[aria-selected=true]{background:none;box-shadow:none}
+.ms .ms-opt:hover,.ms .ms-opt:focus{background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.6));box-shadow:0 3px 8px rgba(40,50,120,.1),inset 0 1px 1px #fff}
+.ms-box{width:20px;height:20px;flex:none;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:#fff;
+  background:linear-gradient(180deg,rgba(255,255,255,.5),rgba(255,255,255,.85));border:1px solid rgba(30,40,100,.18);box-shadow:inset 0 2px 3px rgba(30,40,100,.1);transition:background .15s,border-color .15s}
+.ms-box.on,.ms-box.mixed{background:linear-gradient(180deg,#ffd877,#ffb02b 55%,#f59a00);border-color:#e89400;box-shadow:0 2px 6px rgba(245,154,0,.35),inset 0 1px 1px rgba(255,255,255,.6);color:#3a2600}
+.ms-box i{display:none}.ms-box.mixed i{display:block;width:10px;height:2.5px;border-radius:2px;background:#3a2600}
+.ms-sep{height:1px;margin:4px 8px;background:rgba(30,40,100,.1)}
+/* ===== daily trend: fixed day width, scrolls sideways (newest day first in view), y axis stays put ===== */
+.tcanvas{height:272px;min-height:0}
+.tyaxis{position:absolute;left:0;top:0;bottom:0;width:44px;pointer-events:none}
+.tscroll{position:absolute;left:44px;right:0;top:0;bottom:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;scrollbar-color:rgba(30,40,100,.18) transparent}
+.tscroll::-webkit-scrollbar{height:6px}.tscroll::-webkit-scrollbar-thumb{background:rgba(30,40,100,.18);border-radius:6px}
+.tinner{position:relative;height:100%;margin-left:-44px}
+.tlegend{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 16px;margin-top:10px;font-size:12px;font-weight:800;color:#4b5268}
+.tlegend span{display:inline-flex;align-items:center;gap:7px}
+.tlegend i{width:8px;height:8px;border-radius:50%}
+.tlegend .cap i{width:16px;height:0;border-radius:0;border-top:2px dashed rgba(255,45,85,.7)}

@@ -1,8 +1,9 @@
 // ---------- Dashboard charts: spending by category (donut) and the daily trend ----------
 // Built with Chart.js 4 (static/vendor/chart.umd.min.js, MIT licence, served from this site, no outside requests).
-// One dropdown filters both charts. Only the 5 biggest categories get their own colour; everything else is grouped as "Others (n)",
+// One multi-select dropdown (a checkbox per part of the spending, plus Select all) filters both charts. Only the 5 biggest categories get their own colour; everything else is grouped as "Others (n)",
 // so the charts stay readable even though the app has 14 categories. A category keeps the same colour in both charts.
-// Hovering a day in the trend chart shows only that day in the donut.
+// Hovering a day in the trend chart shows only that day in the donut. The trend is Stacked (with the day's total above each bar) or
+// Stacked 100%; every day is SLOT px wide and more days than fit scroll sideways, opening at the newest day, while the y axis stays put.
 //
 // Rules learned the hard way (see handoff.md):
 // - slice and bar colours stay plain colours; the glass / 3D look is painted ON TOP by plugins (Chart.js cannot animate gradients
@@ -17,10 +18,13 @@ const CAT_COLOR = {
   'Laundry': '#9adf6a', 'Investment': '#2d3a8c', 'Other': '#9aa3bd',
 };
 const OTHERS_COLOR = '#b4bbd2', TOP_N = 5;
-const SPEND_FILTERS = [['total', 'Total spending'], ['fixed', 'Fixed expenses'], ['daily', 'Daily budget'], ['date', 'Date budget'], ['free', 'Free to use']];
-const TREND_TYPES = [['stacked', 'Stacked'], ['stacked100', 'Stacked 100%'], ['clustered', 'Clustered'], ['lines', 'Lines']];
-let spendFilter = localStorage.getItem('dfSpendFilter'), trendType = 'stacked';   // the trend always opens as Stacked (the user's choice)
-if (!SPEND_FILTERS.some(f => f[0] === spendFilter)) spendFilter = 'total';
+const SPEND_PARTS = [['fixed', 'Fixed expenses'], ['daily', 'Daily budget'], ['date', 'Date budget'], ['free', 'Free to use']];
+const TREND_TYPES = [['stacked', 'Stacked'], ['stacked100', 'Stacked 100%']];
+// both choices are remembered in this browser until the user logs out or exits the demo (see the logout handler in app.js)
+const CHART_KEYS = ['dfSpendParts', 'dfTrendType'];
+let spendParts = (() => { try { const v = JSON.parse(localStorage.getItem('dfSpendParts')); if (Array.isArray(v)) return new Set(v.filter(p => SPEND_PARTS.some(s => s[0] === p))); } catch (e) {} return new Set(SPEND_PARTS.map(s => s[0])); })();
+let trendType = TREND_TYPES.some(t => t[0] === localStorage.getItem('dfTrendType')) ? localStorage.getItem('dfTrendType') : 'stacked';
+const AXW = 44, SLOT = 92;   // y-axis width; the width of one day (a 40 px bar); more days than fit scroll sideways
 let donutChart = null, trendChart = null, chartData = null, donutDay = null, donutHover = -1, viewGroups = [];
 let donutCompact = false;   // too narrow for labels around the ring (phones, small windows): the labels become a list under the donut instead
 const hv = {grow: [], fade: [], raf: 0};          // the donut hover animation: 0..1 per slice
@@ -28,20 +32,55 @@ const trendState = {d: null, t: 'stacked', dayTot: []};   // read by the trend c
 
 function chartSection() {
   return `<div class="chartbar"><h2 style="margin:0">Spending breakdown <span class="s">From payday until today</span></h2>
-    <div class="chartfilter"><select id="spendFilter" onchange="setSpendFilter(this.value)">${SPEND_FILTERS.map(([v, l]) => `<option value="${v}" ${v === spendFilter ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+    <div class="chartfilter"><div class="cs"><button type="button" class="cs-btn" id="spendBtn" aria-haspopup="listbox" onclick="event.stopPropagation();spendMenu(this)" onkeydown="if(['ArrowDown','Enter',' '].includes(event.key)){event.preventDefault();event.stopPropagation();spendMenu(this)}">${spendBtnHtml()}</button></div></div></div>
   <div class="grid g2 charts">
     <div class="card chartcard"><div class="chead"><div class="t">By category</div><span class="s" id="donutScope"></span></div>
       <div class="dcanvas"><canvas id="donutC"></canvas><div class="dlabels" id="donutLabels"></div><div class="dcenter" id="donutCenter"></div></div><div id="donutLegend"></div></div>
     <div class="card chartcard"><div class="chead"><div class="t">Daily trend</div>
       <div class="seg" id="trendSeg">${TREND_TYPES.map(([v, l]) => `<button type="button" data-t="${v}" class="${v === trendType ? 'on' : ''}" onclick="setTrendType('${v}')">${l}</button>`).join('')}</div></div>
-      <div class="tcanvas"><canvas id="trendC"></canvas></div></div>
+      <div class="tcanvas"><div class="tyaxis"><canvas id="trendY"></canvas></div><div class="tscroll" id="trendScroll"><div class="tinner"><canvas id="trendC"></canvas></div></div></div>
+      <div class="tlegend" id="trendLegend"></div></div>
   </div>`;
 }
 
-function setSpendFilter(v) { spendFilter = v; localStorage.setItem('dfSpendFilter', v); drawCharts(undefined, true); }
+// ---- the filter: a dropdown with a checkbox per part of the spending, and "Select all" ----
+function spendBtnHtml() {
+  const n = spendParts.size, label = n === SPEND_PARTS.length ? 'All spending' : n ? SPEND_PARTS.filter(s => spendParts.has(s[0])).map(s => s[1]).join(', ') : 'Nothing selected';
+  return `<span class="cs-label">${label}</span><span class="cs-chev">${icon('chevdown', 'regular', 16)}</span>`;
+}
+function spendMenu(btn) {
+  if (csOpenBtn === btn) { csClose(); return; }
+  csClose(); csOpenBtn = btn; btn.classList.add('open');
+  const m = document.createElement('div'); m.className = 'cs-menu ms'; m.setAttribute('role', 'listbox'); m.setAttribute('aria-multiselectable', 'true');
+  const row = (v, l, on, mixed) => `<div class="cs-opt ms-opt" role="option" aria-selected="${on}" tabindex="-1" data-v="${v}"><span class="ms-box ${on ? 'on' : mixed ? 'mixed' : ''}">${on ? icon('check', 'filled', 14) : '<i></i>'}</span><span class="cs-label">${l}</span></div>`;
+  const paint = () => {
+    const all = spendParts.size === SPEND_PARTS.length;
+    m.innerHTML = row('all', 'Select all', all, !all && spendParts.size > 0) + '<div class="ms-sep"></div>' + SPEND_PARTS.map(([v, l]) => row(v, l, spendParts.has(v))).join('');
+  };
+  const toggle = v => {
+    if (v === 'all') spendParts = spendParts.size === SPEND_PARTS.length ? new Set() : new Set(SPEND_PARTS.map(s => s[0]));
+    else spendParts.has(v) ? spendParts.delete(v) : spendParts.add(v);
+    localStorage.setItem('dfSpendParts', JSON.stringify([...spendParts]));
+    paint(); btn.innerHTML = spendBtnHtml(); m.querySelector(`[data-v="${v}"]`).focus({preventScroll: true});
+    drawCharts(undefined, true);
+  };
+  paint(); document.body.appendChild(m); csMenu = m;
+  const r = btn.getBoundingClientRect(), w = Math.max(r.width, 220);
+  m.style.minWidth = w + 'px'; m.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 12)) + 'px'; m.style.top = (r.bottom + 6) + 'px';
+  requestAnimationFrame(() => m.classList.add('show'));
+  m.addEventListener('click', e => { e.stopPropagation(); const o = e.target.closest('.ms-opt'); if (o) toggle(o.dataset.v); });   // stays open: tick as many as you like
+  m.addEventListener('keydown', e => {
+    const opts = [...m.querySelectorAll('.ms-opt')], at = opts.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); opts[Math.min(opts.length - 1, at + 1)].focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); opts[Math.max(0, at - 1)].focus(); }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (at >= 0) toggle(opts[at].dataset.v); }
+    else if (e.key === 'Escape' || e.key === 'Tab') { csClose(); btn.focus(); }
+  });
+  m.querySelector('.ms-opt').focus({preventScroll: true});
+}
 function setTrendType(v) {
   if (v === trendType) return;
-  trendType = v;
+  trendType = v; localStorage.setItem('dfTrendType', v);
   document.querySelectorAll('#trendSeg button').forEach(b => b.classList.toggle('on', b.dataset.t === v));
   drawCharts('trend', true);
 }
@@ -71,10 +110,10 @@ function groupRows(rows) {
   return groups;
 }
 // every expense of the cycle that matches the filter, grouped into the top categories (+ "Others")
-function spendData(c, filter) {
+function spendData(c, parts) {
   const rows = [];
-  if (filter === 'total' || filter === 'fixed') c.fixed.forEach(x => rows.push({date: c.payday, cat: x.cat || 'Other', amt: x.amount}));   // fixed expenses have no date: they count on payday
-  ['daily', 'date', 'free'].forEach(key => { if (filter === 'total' || filter === key) c.env[key].spends.forEach(x => rows.push({date: x.date, cat: x.cat || 'Other', amt: x.amt})); });
+  if (parts.has('fixed')) c.fixed.forEach(x => rows.push({date: c.payday, cat: x.cat || 'Other', amt: x.amount}));   // fixed expenses have no date: they count on payday
+  ['daily', 'date', 'free'].forEach(key => { if (parts.has(key)) c.env[key].spends.forEach(x => rows.push({date: x.date, cat: x.cat || 'Other', amt: x.amt})); });
   const groups = groupRows(rows);
   const groupOf = {}; groups.forEach(g => g.members.forEach(m => { groupOf[m] = g; }));
   // days from payday until today (an older cycle ends the day before the next payday); entries outside that range stretch it
@@ -287,18 +326,16 @@ const trendFx = safe({
   beforeDatasetsDraw(chart, args, opts) {
     chart.$bars = [];
     chart.$clipped = false;
-    if (opts.mode === 'lines') return;
     const tops = {}, bases = {}, xs = {};
     chart.data.datasets.forEach((ds, j) => {
       if (ds.type !== 'bar' || !chart.isDatasetVisible(j)) return;
       chart.getDatasetMeta(j).data.forEach((el, i) => {
         if (!fin(el.x, el.y, el.base, el.width) || !(el.width > 0) || !(Math.abs(el.base - el.y) > .5)) return;   // a bar still being created has no position yet
-        const key = opts.mode === 'clustered' ? i + ':' + j : i;
-        tops[key] = Math.min(tops[key] ?? Infinity, el.y); bases[key] = Math.max(bases[key] ?? -Infinity, el.base); xs[key] = [el.x - el.width / 2, el.width];
+        tops[i] = Math.min(tops[i] ?? Infinity, el.y); bases[i] = Math.max(bases[i] ?? -Infinity, el.base); xs[i] = [el.x - el.width / 2, el.width];
       });
     });
     const c = chart.ctx;
-    chart.$bars = Object.keys(xs).map(k => { const [x, w] = xs[k], h = bases[k] - tops[k]; return {x, y: tops[k], w, h, r: Math.min(opts.mode === 'clustered' ? 7 : 10, w / 2, h / 2)}; });
+    chart.$bars = Object.keys(xs).map(k => { const [x, w] = xs[k], h = bases[k] - tops[k]; return {i: Number(k), x, y: tops[k], w, h, r: Math.min(10, w / 2, h / 2)}; });
     // soft shadow under each bar: a blurred dark shape, never a white fill (a white fill showed as white bars while bars were moving)
     c.save(); try { c.filter = 'blur(7px)'; c.fillStyle = 'rgba(40,50,130,.16)';
       chart.$bars.forEach(b => { if (!fin(b.x, b.y, b.w, b.h, b.r) || b.r < 0) return; c.beginPath(); c.roundRect(b.x + 2, b.y + 7, b.w - 4, b.h, b.r); c.fill(); });
@@ -320,42 +357,72 @@ const trendFx = safe({
     }); } finally { c.restore(); }
   },
 });
+// the total above every stacked day, written like the donut centre (IDR 6.83M); not in the 100% view
+const trendTotals = safe({
+  id: 'trendTotals',
+  afterDatasetsDraw(chart) {
+    if (trendState.t !== 'stacked') return;
+    const c = chart.ctx; c.save();
+    try {
+      c.font = "900 11px 'Nunito', system-ui, sans-serif"; c.fillStyle = '#4b5268'; c.textAlign = 'center'; c.textBaseline = 'bottom';
+      (chart.$bars || []).forEach(b => { const v = trendState.dayTot[b.i]; if (v > 0 && fin(b.x, b.y, b.w)) c.fillText(compactIdr(v), b.x + b.w / 2, b.y - 6); });
+    } finally { c.restore(); }
+  },
+});
+// the y axis stays put while the days scroll: after every frame its strip of the chart is copied into a small canvas on the left
+const trendAxis = safe({
+  id: 'trendAxis',
+  afterDraw(chart) {
+    const y = document.getElementById('trendY'), src = chart.canvas; if (!y || !src.width) return;
+    const w = Math.round(AXW * chart.currentDevicePixelRatio), h = src.height;
+    if (y.width !== w || y.height !== h) { y.width = w; y.height = h; y.style.width = AXW + 'px'; y.style.height = chart.height + 'px'; }
+    const c = y.getContext('2d'); c.clearRect(0, 0, w, h); c.drawImage(src, 0, 0, w, h, 0, 0, w, h);
+  },
+});
 function trendDatasets(d, c, t) {
-  const stacked = t === 'stacked' || t === 'stacked100', dayTot = d.days.map((_, i) => d.groups.reduce((a, g) => a + g.perDay[i], 0));
-  const sets = d.groups.map(g => t === 'lines' ? {
-    type: 'line', label: g.name, raw: g.perDay, data: g.perDay.map(v => v > 0 ? v : null),   // a day without spending is a gap, so a lone day is only a dot
-    backgroundColor: g.color, borderColor: g.color, borderWidth: 3, tension: .4, spanGaps: false, fill: false, hidden: false,
-    pointRadius: 5, pointHoverRadius: 8, pointBackgroundColor: '#fff', pointBorderColor: g.color, pointBorderWidth: 3, pointHoverBorderWidth: 3, pointHoverBackgroundColor: g.color,
-  } : {
+  const dayTot = d.days.map((_, i) => d.groups.reduce((a, g) => a + g.perDay[i], 0));
+  const sets = d.groups.map(g => ({
     type: 'bar', label: g.name, raw: g.perDay, data: t === 'stacked100' ? g.perDay.map((v, i) => dayTot[i] ? v / dayTot[i] * 100 : 0) : g.perDay,
     backgroundColor: g.color, hoverBackgroundColor: shade(g.color, -.06), borderColor: g.color, borderWidth: 0, borderRadius: 0, borderSkipped: false, hidden: false,
-    barPercentage: stacked ? .55 : .82, categoryPercentage: .8, maxBarThickness: stacked ? 40 : 24,
-  });
-  if (t === 'lines') sets.push({   // invisible: keeps every day hoverable in the Lines view even where no line has a point
-    type: 'line', label: '__ghost', raw: null, data: d.days.map(() => 0), showLine: false, pointRadius: 0, pointHoverRadius: 0, borderWidth: 0, hidden: false, backgroundColor: 'rgba(0,0,0,0)', borderColor: 'rgba(0,0,0,0)'});
-  if (spendFilter === 'daily') sets.push({   // the daily cap (hidden in the 100% view, where it means nothing)
+    barPercentage: .55, categoryPercentage: .8, maxBarThickness: 40,
+  }));
+  if (dailyOnly()) sets.push({   // the daily cap (hidden in the 100% view, where it means nothing)
     type: 'line', label: 'Daily cap', raw: null, data: d.days.map(() => c.env.daily.cap || 60000), hidden: t === 'stacked100',
     borderColor: 'rgba(255,45,85,.7)', backgroundColor: 'rgba(255,45,85,.7)', borderWidth: 2, borderDash: [6, 6], pointRadius: 0, pointHoverRadius: 0, fill: false, order: -1, stack: 'cap',
   });
   trendState.d = d; trendState.t = t; trendState.dayTot = dayTot;
   return sets;
 }
+const dailyOnly = () => spendParts.size === 1 && spendParts.has('daily');
 function trendScaleOptions(o, t) {
-  const stacked = t === 'stacked' || t === 'stacked100';
-  o.scales.x.stacked = stacked; o.scales.y.stacked = stacked; o.scales.y.max = t === 'stacked100' ? 100 : undefined;
-  o.plugins.trendFx.mode = t === 'lines' ? 'lines' : t === 'clustered' ? 'clustered' : 'stacked';
+  o.scales.y.max = t === 'stacked100' ? 100 : undefined;
+  o.scales.y.grace = t === 'stacked' ? '14%' : 0;   // room for the totals above the bars
 }
+function trendLegend(d) {
+  const el = document.getElementById('trendLegend'); if (!el) return;
+  el.innerHTML = d.groups.map(g => `<span ${g.detail ? `data-tip="${esc(g.detail.map(([n, v]) => n + ' ' + chartMoney(v)).join(' · '))}"` : ''}><i style="background:${g.color}"></i>${esc(g.name)}</span>`).join('')
+    + (dailyOnly() && trendType !== 'stacked100' ? '<span class="cap"><i></i>Daily cap</span>' : '');
+}
+// every day keeps the same width (SLOT); when the days don't fit, the chart gets wider than its box and scrolls, starting at the newest day
+function sizeTrend(n) {
+  const sc = document.getElementById('trendScroll'); if (!sc) return;
+  const inner = sc.firstElementChild, w = AXW + Math.max(sc.clientWidth, n * SLOT + 8);
+  if (inner.style.width !== w + 'px') inner.style.width = w + 'px';
+}
+const trendToEnd = () => { const sc = document.getElementById('trendScroll'); if (sc) sc.scrollLeft = sc.scrollWidth; };
 function drawTrend(d, c, animate) {
   const tc = document.getElementById('trendC'), t = trendType, labels = d.days.map(dayLabel), sets = trendDatasets(d, c, t);
+  sizeTrend(d.days.length); trendLegend(d);
   if (trendChart && !trendChart.$dead && trendChart.canvas === tc && tc.isConnected) {
     // same chart: change it in place so Chart.js animates bars from where they are to where they go (no empty chart while switching)
     const cur = trendChart.data.datasets;
     sets.forEach((n, i) => { if (cur[i] && cur[i].label === n.label) { Object.keys(cur[i]).forEach(k => { if (!(k in n)) delete cur[i][k]; }); Object.assign(cur[i], n); } else cur[i] = n; });
     cur.length = sets.length; trendChart.data.labels = labels;
     trendScaleOptions(trendChart.options, t); trendChart.options.animation = anim(animate);
+    trendChart.resize();
     // every switch plays the same animation (bars grow up from the axis), whatever the previous type was; the chart is never emptied
     if (animate) { trendChart.update('none'); trendChart.reset(); }
-    trendChart.update(); return;
+    trendChart.update(); trendToEnd(); return;
   }
   if (trendChart) { try { trendChart.destroy(); } catch (e) {} }
   const cv = freshCanvas('trendC');
@@ -364,19 +431,18 @@ function drawTrend(d, c, animate) {
     maintainAspectRatio: false, interaction: {mode: 'index', intersect: false}, layout: {padding: {top: 10, right: 4}}, animation: anim(animate),
     onHover: (e, els) => { try { setDonutDay(els.length ? els[0].index : null); } catch (err) { console.warn(err); } },   // hovering a day shows only that day in the donut
     scales: {
-      x: {grid: {display: false}, border: {display: false}, ticks: {maxRotation: 0, autoSkip: true, maxTicksLimit: 14, font: {size: 11, weight: '800'}, color: '#8a91a6'}},
-      y: {beginAtZero: true, grid: {color: 'rgba(30,40,100,.07)', drawTicks: false}, border: {display: false, dash: [4, 5]},
+      x: {stacked: true, grid: {display: false}, border: {display: false}, ticks: {maxRotation: 0, autoSkip: true, font: {size: 11, weight: '800'}, color: '#8a91a6'}},
+      y: {stacked: true, beginAtZero: true, grid: {color: 'rgba(30,40,100,.07)', drawTicks: false}, border: {display: false, dash: [4, 5]}, afterFit: s => { s.width = AXW; },
         ticks: {padding: 8, font: {size: 11, weight: '800'}, color: '#8a91a6', maxTicksLimit: 6, callback: v => hideNums ? '' : trendState.t === 'stacked100' ? v + '%' : compact(v)}},
     },
     plugins: {
-      trendFx: {mode: 'stacked'},
-      legend: {position: 'bottom', labels: {usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 16, font: {size: 12, weight: '800'}, color: '#4b5268',
-        filter: (item, data) => { const ds = data.datasets[item.datasetIndex]; return ds.label !== '__ghost' && !(ds.label === 'Daily cap' && ds.hidden); }}},
+      legend: {display: false},   // the legend is HTML under the chart, so it stays in view when the days scroll
       tooltip: {enabled: false, external: trendTip},   // our own HTML tooltip (a table); the canvas tooltip crashed on days without spending
     },
   };
   trendScaleOptions(options, t);
-  trendChart = new Chart(cv, {type: 'bar', data: {labels, datasets: sets}, options, plugins: [trendFx, {id: 'trendDead', afterDestroy(ch) { ch.$dead = true; }}]});
+  trendChart = new Chart(cv, {type: 'bar', data: {labels, datasets: sets}, options, plugins: [trendFx, trendTotals, trendAxis, {id: 'trendDead', afterDestroy(ch) { ch.$dead = true; }}]});
+  trendToEnd();
   cv.addEventListener('mouseleave', () => { setDonutDay(null); const tip = document.getElementById('chartTip'); if (tip) tip.classList.remove('show'); });
 }
 
@@ -411,11 +477,11 @@ function freshCanvas(id) {
 function drawCharts(part, animate) {
   if (!document.getElementById('donutC') || !document.getElementById('trendC') || typeof Chart === 'undefined') return;
   chartDefaults();
-  const c = K().c, d = part === 'trend' && chartData ? chartData : spendData(c, spendFilter), legend = document.getElementById('donutLegend');
+  const c = K().c, d = part === 'trend' && chartData ? chartData : spendData(c, spendParts), legend = document.getElementById('donutLegend');
   const none = !d.total;
-  document.querySelectorAll('.tcanvas,.dcanvas').forEach(e => e.classList.toggle('hidden', none));
+  document.querySelectorAll('.tcanvas,.dcanvas,.tlegend').forEach(e => e.classList.toggle('hidden', none));
   legend.classList.toggle('dlist', false);
-  legend.innerHTML = none ? '<div class="s cempty">No spending logged yet for this view. Add expenses on the Spending page and the charts will fill in.</div>' : '';
+  legend.innerHTML = none ? `<div class="s cempty">${spendParts.size ? 'No spending logged yet for this view. Add expenses on the Spending page and the charts will fill in.' : 'Nothing is selected. Tick at least one part of your spending in the dropdown above.'}</div>` : '';
   if (none) {
     [donutChart, trendChart].forEach(ch => { if (ch) try { ch.destroy(); } catch (e) {} }); donutChart = trendChart = null; chartData = d; return;
   }
