@@ -37,17 +37,24 @@ let S, tab = 'dash';
 const spent = e => e.spends.reduce((a, x) => a + x.amt, 0);
 const left = e => e.amount + (e.carry || 0) - spent(e) - e.moved;
 const cur = () => S.cycles.find(c => c.id === S.activeId);
+// A cycle with tracked:false only records the salary (the months before tracking started). It has no budgets, no spending and no
+// effect on cash saving, and every page except the dashboard and Pay cycles just says "No tracking yet".
+const untracked = c => c.tracked === false;
+let SLIPS = new Set();   // months (yyyymm) that have a salary slip PDF on the server; empty in demo mode and on the live site
+const slipKey = c => c.payday.slice(0, 7).replace('-', '');
 
 // per-cycle numbers; savings chain runs through cycles in order
 // a transfer belongs to the latest cycle whose payday is on or before the transfer date
 function cycleOfDate(date) {
-  let found = S.cycles[0];
-  S.cycles.forEach(c => { if (c.payday <= date) found = c; });
+  const tracked = S.cycles.filter(c => !untracked(c));
+  let found = tracked[0];
+  tracked.forEach(c => { if (c.payday <= date) found = c; });
   return found;
 }
 function calcAll() {
   let prev = S.basePrevSavings, prevC = null;
   return S.cycles.map(c => {
+    if (untracked(c)) return {c, prev, save: 0, fixedTotal: 0, afterSave: 0, afterFixed: 0, dailyDate: 0, free: 0, moved: 0, transferred: 0, total: prev, untracked: true};
     ['daily', 'date', 'free'].forEach(key => { c.env[key].carry = prevC ? Math.max(0, left(prevC.env[key])) : 0; });
     const save = Math.round(c.salary * c.savePct / 100);
     const fixedTotal = c.fixed.reduce((a, x) => a + x.amount, 0);
@@ -105,7 +112,7 @@ function persist() {
 const commit = () => { sel.clear(); persist(); render(); };
 
 // ---------- render ----------
-const TITLES = {dash: 'Salary', wealth: 'Wealth', spend: 'Spending', cycles: 'Pay cycles'};
+const TITLES = {dash: 'Dashboard', wealth: 'Wealth', spend: 'Spending', cycles: 'Pay cycles'};
 let lastView = '', lastTab = '', justOpened = null;
 function render() {
   const k = K(), c = k.c;
@@ -118,7 +125,7 @@ function render() {
   const vk = tab + '|' + S.activeId, entering = vk !== lastView, tk = tab === 'spend' ? spendTab : tab === 'wealth' ? wealthTab : '', swapping = !entering && tk !== lastTab;
   lastView = vk; lastTab = tk;
   const v = $('#view'); v.className = entering ? 'enter' : '';
-  v.innerHTML = {dash, wealth, spend, cycles}[tab](k);
+  v.innerHTML = untracked(c) && (tab === 'wealth' || tab === 'spend') ? noTracking(c) : {dash, wealth, spend, cycles}[tab](k);
   const top = document.querySelector('.top'); top.classList.remove('enter-top'); if (entering) { void top.offsetWidth; top.classList.add('enter-top'); }
   if (swapping) { const p = v.querySelector('.tabs + *'); if (p) p.classList.add('swap'); }
   decorate(entering);
@@ -359,8 +366,26 @@ function diagram(k) {
   return `<div class="diagram" style="width:${Wd}px;height:${Ht + 40}px;margin:0 auto"><svg width="${Wd}" height="${Ht + 40}">${paths.join('')}</svg>${nodes.map(n => nodeHtml(n, true)).join('')}</div>`;
 }
 
+function noTracking(c) {
+  return `<div class="note"><span class="ni">ⓘ</span><div>No tracking yet. Spending and wealth are tracked from November 2026, so ${c.label} only has the salary.</div></div>`;
+}
+const slipBtn = c => !GUEST && SLIPS.has(slipKey(c))
+  ? `<button type="button" class="slipb" data-tip="Open salary slip" aria-label="Open salary slip" onclick="openSlip('${slipKey(c)}')">${icon('pdf', 'regular', 24)}</button>` : '';   // no slip for that month = no button, the card works the same
+// the slip opens in a pop-up on this page (the browser's own PDF viewer inside an iframe), not in a new tab
+function openSlip(ym) {
+  if (mdlOpen) mdlOpen(false);
+  const c = S.cycles.find(x => slipKey(x) === ym), back = document.createElement('div'); back.className = 'mdl-back';
+  back.innerHTML = `<div class="mdl slipv" role="dialog" aria-modal="true" aria-label="Salary slip"><div class="slipv-h"><div class="mdl-t">Salary slip${c ? ' · ' + esc(c.label) : ''}</div><button type="button" class="ib del" data-tip="Close" aria-label="Close">${icon('dismiss', 'regular', 20)}</button></div><iframe src="/api/slip/${ym}#view=FitH" title="Salary slip"></iframe></div>`;
+  document.body.appendChild(back);
+  const done = () => { document.removeEventListener('keydown', key, true); mdlOpen = null; back.classList.remove('show'); setTimeout(() => back.remove(), 160); };
+  const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(); } };
+  mdlOpen = done; document.addEventListener('keydown', key, true);
+  back.querySelector('button').onclick = done; back.addEventListener('mousedown', e => { if (e.target === back) done(); });
+  requestAnimationFrame(() => back.classList.add('show'));
+}
 function dash(k) {
   const c = k.c, S = c.salary, env = c.env;
+  if (untracked(c)) return `<div class="grid g4"><div class="pocket bca"><div class="row">${logo('bca')}<div><div class="name">Salary</div></div>${slipBtn(c)}</div><div class="big-num">${rp(S)}</div></div></div>${noTracking(c)}`;
   const spentTotal = ['daily', 'date', 'free'].reduce((t, key) => t + spent(env[key]), 0);
   const expense = k.fixedTotal + spentTotal;                                   // fixed + everything logged so far
   const remaining = ['daily', 'date', 'free'].reduce((t, key) => t + left(env[key]), 0);   // still available in the pockets
@@ -368,7 +393,7 @@ function dash(k) {
   const tile = (name, tone) => `<div class="ico t-${tone}" style="width:86px;height:48px;border-radius:16px">${icon(name, 'filled', 24)}</div>`;
   return `
   <div class="grid g4">
-    <div class="pocket bca"><div class="row">${logo('bca')}<div><div class="name">Salary</div></div></div><div class="big-num">${rp(S)}</div></div>
+    <div class="pocket bca"><div class="row">${logo('bca')}<div><div class="name">Salary</div></div>${slipBtn(c)}</div><div class="big-num">${rp(S)}</div></div>
     <div class="pocket expense"><div class="row">${tile('receipt', 'red')}<div><div class="name">Total expenses</div><div class="sub">${pc2(expense / S * 100)} of salary</div></div></div><div class="big-num">${rp(expense)}</div></div>
     <div class="pocket remain"><div class="row">${tile('moneyhand', 'green')}<div><div class="name">Total remaining</div><div class="sub">${pc2(remaining / S * 100)} of salary</div></div></div><div class="big-num">${rp(remaining)}</div></div>
     <div class="pocket total"><div class="row">${tile('diamond', 'navy')}<div><div class="name">Total wealth</div></div></div><div class="big-num">${rp(wealthTotal)}</div></div>
@@ -629,7 +654,7 @@ function savingsPanel(k) {
   <h2>History</h2>
   <div class="card"><table>
     <tr><th>Cycle</th><th class="r">Previous</th><th class="r">Saved from salary</th><th class="r">Leftovers</th><th class="r">Moved to investments</th><th class="r">Total</th></tr>
-    ${all.map(x => `<tr class="${x.c.id === S.activeId ? 'cur' : ''}"><td><b>${x.c.label}</b></td><td class="r">${rp(x.prev)}</td><td class="r">${inflow(x.save)} <span class="s">(${pc2(x.c.savePct)})</span></td><td class="r">${inflow(x.moved)}</td><td class="r">${outflow(x.transferred)}</td><td class="r"><b>${rp(x.total)}</b></td></tr>`).join('')}
+    ${all.filter(x => !x.untracked).map(x => `<tr class="${x.c.id === S.activeId ? 'cur' : ''}"><td><b>${x.c.label}</b></td><td class="r">${rp(x.prev)}</td><td class="r">${inflow(x.save)} <span class="s">(${pc2(x.c.savePct)})</span></td><td class="r">${inflow(x.moved)}</td><td class="r">${outflow(x.transferred)}</td><td class="r"><b>${rp(x.total)}</b></td></tr>`).join('')}
   </table></div>`;
 }
 
@@ -710,7 +735,7 @@ function spend(k) {
         <td><select form="ef" name="cat">${opts(x.cat)}</select></td>
         <td><input form="ef" name="note" value="${esc(x.note || '')}"></td>
         <td><input form="ef" name="amt" class="money" inputmode="numeric" autocomplete="off" value="${fm(x.amt)}" required style="text-align:right"></td>
-        <td class="r"><button form="ef" class="ib edit" data-tip="Save" aria-label="Save">${icon('save', 'regular', 18)}</button><button type="button" class="ib edit" data-tip="Cancel" aria-label="Cancel" onclick="editing=null;render()">${icon('dismiss', 'regular', 18)}</button></td></tr>` : `
+        <td class="r"><button form="ef" class="ib edit" data-tip="Save" aria-label="Save">${icon('save', 'regular', 18)}</button><button type="button" class="ib del" data-tip="Cancel" aria-label="Cancel" onclick="editing=null;render()">${icon('dismiss', 'regular', 18)}</button></td></tr>` : `
       <tr><td>${chk(spendTab, i)}</td><td>${fmtDate(x.date)}</td><td><span class="cchip">${catLabel(x.cat || 'Other')}</span></td><td>${esc(x.note || '—')}</td><td class="r neg"><b>−${rp(x.amt)}</b></td>
         <td class="r"><button class="ib edit" data-tip="Edit" aria-label="Edit" onclick="editing={key:spendTab,i:${i}};render()">${icon('edit', 'regular', 18)}</button><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delSpend(spendTab,${i})">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
       ${rows.length || spendTab === 'daily' ? '' : '<tr><td colspan="6" class="s" style="text-align:center;padding:22px">No expenses yet. Add your first one above.</td></tr>'}
@@ -750,7 +775,7 @@ function cashPanel(k) {
         <td>${t.type === 'stockbit' ? `<span class="cchip">${catLabel('Investment')}</span>` : `<select form="cef" name="cat">${catOpts(catOf(t))}</select>`}</td>
         <td><input form="cef" name="note" value="${esc(t.note || '')}"></td>
         <td><input form="cef" name="amt" class="money" inputmode="numeric" autocomplete="off" value="${fm(t.amount)}" required style="text-align:right"></td>
-        <td class="r"><button form="cef" class="ib edit" data-tip="Save" aria-label="Save">${icon('save', 'regular', 18)}</button><button type="button" class="ib edit" data-tip="Cancel" aria-label="Cancel" onclick="editing=null;render()">${icon('dismiss', 'regular', 18)}</button></td></tr>` : `
+        <td class="r"><button form="cef" class="ib edit" data-tip="Save" aria-label="Save">${icon('save', 'regular', 18)}</button><button type="button" class="ib del" data-tip="Cancel" aria-label="Cancel" onclick="editing=null;render()">${icon('dismiss', 'regular', 18)}</button></td></tr>` : `
       <tr><td>${fmtDate(t.date)}</td><td><span class="cchip">${catLabel(catOf(t))}</span></td>
         <td>${t.note ? esc(t.note) + ' ' : t.type === 'expense' ? '—' : ''}${t.type === 'stockbit' ? '<span class="s">Stock top-up</span>' : t.type === 'gold' ? '<span class="s">Gold purchase</span>' : ''}</td>
         <td class="r neg"><b>−${rp(t.amount)}</b></td>
@@ -832,7 +857,7 @@ function dayList(e) {
           <td style="width:190px"><select form="ef" name="cat">${catOpts(x.cat)}</select></td>
           <td><input form="ef" name="note" value="${esc(x.note || '')}"></td>
           <td style="width:150px"><input form="ef" name="amt" class="money" inputmode="numeric" autocomplete="off" value="${fm(x.amt)}" required style="text-align:right"></td>
-          <td class="r" style="width:140px"><button form="ef" class="ib edit" data-tip="Save" aria-label="Save">${icon('save', 'regular', 18)}</button><button type="button" class="ib edit" data-tip="Cancel" aria-label="Cancel" onclick="editing=null;render()">${icon('dismiss', 'regular', 18)}</button></td></tr>` : `
+          <td class="r" style="width:140px"><button form="ef" class="ib edit" data-tip="Save" aria-label="Save">${icon('save', 'regular', 18)}</button><button type="button" class="ib del" data-tip="Cancel" aria-label="Cancel" onclick="editing=null;render()">${icon('dismiss', 'regular', 18)}</button></td></tr>` : `
         <tr><td style="width:36px">${chk('daily', i)}</td><td style="width:150px"><span class="cchip">${catLabel(x.cat || 'Other')}</span></td><td>${esc(x.note || '—')}</td><td class="r neg" style="width:150px"><b>−${rp(x.amt)}</b></td>
           <td class="r" style="width:140px"><button class="ib edit" data-tip="Edit" aria-label="Edit" onclick="editing={key:'daily',i:${i}};render()">${icon('edit', 'regular', 18)}</button><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delSpend('daily',${i})">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}</table>
         <button class="link" style="margin:8px 0 4px" onclick="addToDay('${d}')">+ Add another entry to this day</button></div>` : ''}
@@ -891,7 +916,15 @@ function cycles(k) {
         <button class="cta" style="margin-top:auto">Create cycle</button>
       </form>
     </div>
-    <div class="card cyc"><div class="t" style="font-size:18px;font-weight:900;margin-bottom:6px">Edit ${c.label}</div>
+    ${untracked(c) ? `<div class="card cyc"><div class="t" style="font-size:18px;font-weight:900;margin-bottom:6px">Edit ${c.label}</div>
+      <div class="s intro">This cycle has no tracking yet, so only the payday and the salary can be changed.</div>
+      <form onsubmit="editCycle(event)" class="cycform">
+        <div class="fgrid">
+          <label class="s">Payday<input name="payday" type="date" value="${c.payday}" required style="width:100%;display:block;margin-top:4px"></label>
+          ${inp('Salary (BCA)', 'salary', fm(c.salary))}
+        </div>
+        <button class="cta" style="margin-top:auto">Save changes</button>
+      </form></div>` : `<div class="card cyc"><div class="t" style="font-size:18px;font-weight:900;margin-bottom:6px">Edit ${c.label}</div>
       <div class="s intro">Adjust this cycle's numbers. Free to use is recalculated automatically, and fixed expenses are edited on the Spending page.</div>
       <form onsubmit="editCycle(event)" class="cycform">
         <div class="fgrid">
@@ -905,12 +938,13 @@ function cycles(k) {
           ${['daily', 'date', 'free'].map(key => `<div class="kv" style="padding:6px 0"><span>${E(key).name}</span><b>${rp(c.env[key].carry || 0)}</b></div>`).join('')}</div>
         <button class="cta" style="margin-top:auto">Save changes</button>
       </form>
-    </div>
+    </div>`}
   </div>
   <h2>All cycles</h2>
   <div class="card"><table>
     <tr><th>Cycle</th><th>Payday</th><th class="r">Salary</th><th class="r">Fixed</th><th class="r">Daily</th><th class="r">Date</th><th class="r">Free to use</th><th class="r">Cash saving after</th><th></th></tr>
-    ${all.map(x => `<tr class="${x.c.id === S.activeId ? 'cur' : ''}"><td><b>${x.c.label}</b></td><td>${fmtDate(x.c.payday)}</td><td class="r">${rp(x.c.salary)}</td><td class="r">${rp(x.fixedTotal)}</td><td class="r">${rp(x.c.env.daily.amount)}</td><td class="r">${rp(x.c.env.date.amount)}</td><td class="r">${rp(x.free)}</td><td class="r"><b>${rp(x.total)}</b></td>
+    ${all.map(x => x.untracked ? `<tr class="${x.c.id === S.activeId ? 'cur' : ''}"><td><b>${x.c.label}</b></td><td>${fmtDate(x.c.payday)}</td><td class="r">${rp(x.c.salary)}</td><td colspan="5" class="s">No tracking yet</td>
+      <td class="r"><button class="ib edit" data-tip="Open" aria-label="Open" onclick="selectCycle('${x.c.id}')">${icon('open', 'regular', 18)}</button></td></tr>` : `<tr class="${x.c.id === S.activeId ? 'cur' : ''}"><td><b>${x.c.label}</b></td><td>${fmtDate(x.c.payday)}</td><td class="r">${rp(x.c.salary)}</td><td class="r">${rp(x.fixedTotal)}</td><td class="r">${rp(x.c.env.daily.amount)}</td><td class="r">${rp(x.c.env.date.amount)}</td><td class="r">${rp(x.free)}</td><td class="r"><b>${rp(x.total)}</b></td>
       <td class="r"><button class="ib edit" data-tip="Open" aria-label="Open" onclick="selectCycle('${x.c.id}')">${icon('open', 'regular', 18)}</button></td></tr>`).join('')}
   </table></div>`;
 }
@@ -943,7 +977,9 @@ async function newCycle(ev) {
   S.cycles.push(c); S.activeId = c.id; tab = 'dash'; commit();
 }
 function editCycle(ev) { ev.preventDefault(); const f = ev.target, c = cur();
-  c.payday = f.payday.value; c.salary = num(f.salary.value); c.savePct = Number(f.pct.value); c.label = monthLabel(c.payday);
+  c.payday = f.payday.value; c.salary = num(f.salary.value); c.label = monthLabel(c.payday);
+  if (untracked(c)) { commit(); return; }
+  c.savePct = Number(f.pct.value);
   c.env.daily.amount = num(f.dailyAmt.value); c.env.daily.cap = num(f.dailyCap.value) || 60000; c.env.date.amount = num(f.dateAmt.value); commit(); }
 async function resetAll() { if (await ask({title: 'Reset all data?', text: 'Everything goes back to the empty starting numbers.', ok: 'Reset', danger: true, icon: 'warning'})) { S = structuredClone(DEFAULT); commit(); } }
 
@@ -978,6 +1014,7 @@ $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
       cycles: [{id: 'c1', label: c.label, payday: c.payday, salary: c.salary, savePct: c.savePct, fixed: o.fixed, env: o.env}]};
   }
   S = saved || structuredClone(DEFAULT);
+  if (!GUEST) { try { SLIPS = new Set(await (await fetch('/api/slips')).json()); } catch (e) {} }   // salary slip PDFs exist only on this computer's server, never in the demo
   if (!S.wealth) S.wealth = structuredClone(DEFAULT.wealth);
   if (!S.wealth.transfers) S.wealth.transfers = [];
   if (!S.wealth.gold) S.wealth.gold = {pricePerGram: 0, items: []};

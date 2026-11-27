@@ -1,0 +1,4 @@
+#!/bin/sh
+# runs before every git push: sends new salary slips to the live database (never to GitHub). It never blocks the push.
+uv run python tools/sync_slips.py || true
+exit 0

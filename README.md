@@ -17,7 +17,7 @@ So I made a small website that follows exactly those rules.
 
 ## What it does
 
-- **Salary:** a flow diagram that shows how one salary branches into savings, fixed expenses and budgets, and what is left in each.
+- **Dashboard:** a flow diagram that shows how one salary branches into savings, fixed expenses and budgets, and what is left in each.
 - **Wealth:** cash saving, stocks (Stockbit) and gold (Treasury) in one place, with live prices and profit or loss.
 - **Spending:** every expense by budget, with a daily cap that turns each day green or red.
 - **Pay cycles:** start a new cycle every payday. Past cycles stay saved and can be opened any time.

@@ -50,6 +50,7 @@ GUEST_DEMO = os.environ.get("GUEST_DEMO", "1") != "0"  # "Try the demo" with ran
 ON_VERCEL = bool(os.environ.get("VERCEL"))
 DATA = BASE / "data" / "state.json"
 QUOTES = BASE / "data" / "quotes.json"
+SLIPS_DIR = BASE / "secrets" / "slips"  # local copy of the salary slips: <yyyymm>.pdf (git-ignored). On the live site they are in the private Supabase table `slips`; `tools/sync_slips.py` (run automatically on git push) copies new ones there.
 QUOTE_TTL = 10  # seconds: don't hit Yahoo more often than this unless ?refresh=1
 
 
@@ -139,6 +140,41 @@ def guest():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+def _slip_months():
+    if DATABASE_URL:
+        with _db() as conn:
+            return [r[0] for r in conn.execute("select ym from slips order by ym").fetchall()]
+    return sorted(f.stem for f in SLIPS_DIR.glob("??????.pdf")) if SLIPS_DIR.is_dir() else []
+
+
+@app.get("/api/slips")
+def slips_list():
+    """Months (yyyymm) that have a salary slip stored."""
+    try:
+        return jsonify(_slip_months())
+    except Exception:
+        return jsonify([])
+
+
+@app.get("/api/slip/<ym>")
+def slip(ym):
+    if not (len(ym) == 6 and ym.isdigit()):
+        return "Not found", 404
+    if DATABASE_URL:
+        with _db() as conn:
+            row = conn.execute("select data from slips where ym = %s", [ym]).fetchone()
+        data = bytes(row[0]) if row else None
+    else:
+        f = SLIPS_DIR / f"{ym}.pdf"
+        data = f.read_bytes() if f.is_file() else None
+    if data is None:
+        return "Not found", 404
+    resp = app.response_class(data, mimetype="application/pdf")
+    resp.headers["Content-Disposition"] = f'inline; filename="salary-slip-{ym}.pdf"'
+    resp.headers["Cache-Control"] = "private, no-store"
+    return resp
 
 
 @app.get("/")

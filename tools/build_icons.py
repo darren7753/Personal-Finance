@@ -8,7 +8,7 @@ BASE = 'https://raw.githubusercontent.com/microsoft/fluentui-system-icons/main/a
 ICONS = {  # key -> Fluent folder name
     'food': 'Food', 'cart': 'Cart', 'car': 'Vehicle Car', 'movies': 'Movies and TV', 'heart': 'Heart', 'bag': 'Shopping Bag',
     'heartpulse': 'Heart Pulse', 'home': 'Home', 'card': 'Wallet Credit Card', 'repeat': 'Arrow Repeat All', 'flash': 'Flash',
-    'trending': 'Arrow Trending', 'washer': 'Washer', 'edit': 'Edit', 'trash': 'Delete', 'eraser': 'Eraser', 'chevleft': 'Chevron Left', 'calendar': 'Calendar', 'save': 'Save', 'undo': 'Arrow Undo', 'refresh': 'Arrow Clockwise', 'open': 'Open', 'dismiss': 'Dismiss', 'box': 'Box', 'calday': 'Calendar Day', 'balloon': 'Balloon', 'savings': 'Savings',
+    'trending': 'Arrow Trending', 'washer': 'Washer', 'edit': 'Edit', 'trash': 'Delete', 'eraser': 'Eraser', 'chevleft': 'Chevron Left', 'calendar': 'Calendar', 'save': 'Save', 'undo': 'Arrow Undo', 'refresh': 'Arrow Clockwise', 'open': 'Open', 'dismiss': 'Dismiss', 'pdf': 'Document PDF', 'box': 'Box', 'calday': 'Calendar Day', 'balloon': 'Balloon', 'savings': 'Savings',
     'receipt': 'Receipt', 'moneyhand': 'Money Hand', 'diamond': 'Diamond', 'calclock': 'Calendar Clock',
     'databar': 'Data Bar Vertical', 'calculator': 'Calculator', 'check': 'Checkmark Circle', 'warning': 'Warning',
     'chevright': 'Chevron Right', 'chevdown': 'Chevron Down', 'eye': 'Eye', 'eyeoff': 'Eye Off', 'signout': 'Sign Out',

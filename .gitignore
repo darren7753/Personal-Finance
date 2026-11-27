@@ -10,3 +10,7 @@ client_secret*.json
 *.key
 desktop.ini
 Thumbs.db
+
+# salary slips and other personal documents must never be committed
+*.pdf
+SlipGaji*
