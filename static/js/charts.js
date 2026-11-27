@@ -94,7 +94,7 @@ function daysBetween(a, b) {
 const dayLabel = iso => `${Number(iso.slice(8))} ${MONTHS[Number(iso.slice(5, 7)) - 1].slice(0, 3)}`;
 const chartMoney = v => hideNums ? 'IDR ••••••' : rp(v);
 const chartPct = v => hideNums ? '•••%' : pc2(v);
-const labelPct = v => hideNums ? '•••%' : (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10) + '%';
+const labelPct = v => hideNums ? '•••%' : v.toFixed(2) + '%';   // always 2 decimals
 const compactIdr = v => hideNums ? 'IDR ••••' : 'IDR ' + (v >= 1e6 ? (Math.round(v / 1e4) / 100).toLocaleString('en-US') + 'M' : v >= 1e3 ? Math.round(v / 1e3).toLocaleString('en-US') + 'K' : v);
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const shade = (h, p) => { const f = p >= 0 ? v => Math.round(v + (255 - v) * p) : v => Math.round(v * (1 + p)); const [r, g, b] = hexRgb(h); return `rgb(${f(r)},${f(g)},${f(b)})`; };
@@ -154,7 +154,7 @@ function donutText() {   // the centre text and the small note next to the card 
   const r = donutChart ? donutChart.getDatasetMeta(0).controller.innerRadius || 80 : 80, v = g ? vals[donutHover] : tot, small = r < 64;
   center.style.fontSize = Math.max(9, Math.min(18, r * .24)) + 'px';   // the text always fits inside the hole
   center.innerHTML = `<div class="dc-t" style="${g ? 'color:' + g.color : ''}">${esc(g ? g.name : donutDay == null ? 'Total spent' : dayLabel(chartData.days[donutDay]))}</div>
-    <div class="dc-a">${small ? compactIdr(v) : chartMoney(v)}</div>${g ? `<div class="dc-p">${chartPct(tot ? v / tot * 100 : 0)}</div>` : ''}`;
+    <div class="dc-a">${small ? compactIdr(v) : chartMoney(v)}</div>${g ? `<div class="dc-p">${labelPct(tot ? v / tot * 100 : 0)}</div>` : ''}`;
 }
 function donutPills() {   // one label per category; hovering a label works exactly like hovering its slice
   const around = document.getElementById('donutLabels'), list = document.getElementById('donutLegend'); if (!around || !list) return;
