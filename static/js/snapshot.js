@@ -37,8 +37,8 @@ async function diagramPng(k, {hide = false} = {}) {
 const downloadBlob = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
 
 function snapFlash(btn, tip) {   // a check mark for a moment, then back to the normal icon
-  btn.innerHTML = icon('check', 'filled', 20); btn.dataset.tip = tip; btn.classList.add('ok');
-  setTimeout(() => { btn.innerHTML = icon('imagecopy', 'regular', 20); btn.dataset.tip = 'Copy as image'; btn.classList.remove('ok'); }, 1800);
+  btn.innerHTML = icon('check', 'filled', 24); btn.dataset.tip = tip; btn.classList.add('ok');
+  setTimeout(() => { btn.innerHTML = icon('imagecopy', 'regular', 24); btn.dataset.tip = 'Copy as image'; btn.classList.remove('ok'); }, 1800);
 }
 
 async function copyDiagramImage(btn) {

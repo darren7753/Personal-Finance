@@ -434,7 +434,7 @@ function dash(k) {
     <div class="pocket total"><div class="row">${tile('diamond', 'navy')}<div><div class="name">Total wealth</div></div></div><div class="big-num">${rp(wealthTotal)}</div></div>
   </div>
   <h2>Where your salary goes <span class="s">Log real expenses on the Spending page</span></h2>
-  <div class="fcwrap"><div class="card funnelcard">${diagram(k)}</div><button type="button" class="ib snapb" data-tip="Copy as image" aria-label="Copy as image" onclick="copyDiagramImage(this)">${icon('imagecopy', 'regular', 20)}</button></div>
+  <div class="fcwrap"><div class="card funnelcard">${diagram(k)}</div><button type="button" class="ib snapb" data-tip="Copy as image" aria-label="Copy as image" onclick="copyDiagramImage(this)">${icon('imagecopy', 'regular', 24)}</button></div>
   ${chartSection()}`;
 }
 
