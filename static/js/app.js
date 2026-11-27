@@ -648,8 +648,8 @@ function goldPanel() {
   </div>
   <div class="card">
     <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Gold purchases</div>
-      <div class="row" style="margin-left:auto;gap:12px">${goldBuyPrice() ? `<span class="s">Buy price per gram</span><b class="price-amt">${rp(goldBuyPrice())}</b>` : ''}<span class="s">Sell price per gram</span><b class="price-amt">${gc.price ? rp(gc.price) : 'Loading…'}</b><span class="live on"><i></i>Live</span></div></div>
-    <div class="s" style="margin-bottom:10px">Each new purchase is taken from your cash saving. ${GUEST ? 'The price is simulated for this demo.' : GOLD_INFO[goldSource()].src + '.'}</div>
+      <div class="row" style="margin-left:auto;gap:12px">${goldBuyPrice() ? `<span class="s">Buy price per gram</span><b class="price-amt">${rp(goldBuyPrice())}</b>` : ''}<span class="s">Sell price per gram</span><b class="price-amt">${gc.price ? rp(gc.price) : 'Loading…'}</b><span class="live on"><i></i>Live</span><button class="ib edit sm" data-tip="Refresh prices" aria-label="Refresh prices" onclick="loadQuotes(true).then(render)">${icon('refresh', 'regular', 16)}</button></div></div>
+    <div class="s" style="margin-bottom:10px">Each new purchase is taken from your cash saving. ${GUEST ? 'The price is simulated for this demo.' : GOLD_INFO[goldSource()].src} · updated <span id="quoteTime">${quotesAt ? new Date(quotesAt).toLocaleTimeString('en-GB') : ''}</span></div>
     <form id="gadd" onsubmit="addGold(event)"></form>
     <table class="crud">
       <tr><th style="width:150px">Date</th><th class="r" style="width:120px">Grams</th><th class="r">Paid</th><th class="r">Price per gram</th><th class="r">Value now</th><th class="r">P&L</th><th>Remarks</th><th style="width:130px"></th></tr>
