@@ -213,6 +213,17 @@ function layoutPills(chart) {
     const mid = (a.startAngle + a.endAngle) / 2; if (!Number.isFinite(mid)) return;
     items.push({i, pill, mid, side: Math.cos(mid) >= 0 ? 1 : -1, h: pill.offsetHeight || 32, want: y0 + Math.sin(mid) * rr});
   });
+  // Balance the two sides: slices close to the top or bottom of the ring can have their label on either side, so when one side is
+  // clearly fuller than the other, those slices (the ones nearest the vertical axis first) move to the emptier side. A moved slice
+  // that is further from the axis gets a label further out, so its leader line never crosses its neighbour's.
+  const load = side => items.filter(t => t.side === side).reduce((a, t) => a + t.h + gap, 0);
+  for (let n = 0; n < items.length; n++) {
+    const heavy = load(1) >= load(-1) ? 1 : -1, diff = Math.abs(load(1) - load(-1));
+    const cand = items.filter(t => t.side === heavy && Math.abs(Math.cos(t.mid)) < .6).sort((a, b) => Math.abs(Math.cos(a.mid)) - Math.abs(Math.cos(b.mid)))[0];
+    if (!cand || cand.h + gap >= diff) break;
+    cand.side = -heavy; cand.moved = true;
+    cand.want = y0 + Math.sin(cand.mid) * rr + Math.sign(Math.sin(cand.mid)) * Math.abs(Math.cos(cand.mid)) * rr * .9;
+  }
   [1, -1].forEach(side => {
     const col = items.filter(t => t.side === side).sort((a, b) => a.want - b.want); if (!col.length) return;
     let blocks = col.map(t => ({ts: [t], h: t.h, want: t.want}));
