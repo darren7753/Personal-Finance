@@ -247,7 +247,8 @@ function layoutPills(chart) {
     // when the label was pushed up or down by its neighbours, the line still runs straight out from the slice until it reaches the
     // label's height (the point on the slice's own ray), then goes flat into the label, instead of bending around the circle
     const sn = Math.sin(t.mid), cs = Math.cos(t.mid), rn = Math.abs(sn) > .15 ? dy / sn : 0;
-    if (!t.moved && rn >= R + 2 && rn <= R + 80) t.elbow = x0 + cs * rn;
+    // (when the label was pushed far, the line leaves the slice at an angle and ends at most 36 px out, so it never runs long)
+    if (!t.moved && rn >= R + 2) t.elbow = x0 + cs * Math.min(rn, R + 36);
     t.lx = t.elbow + t.side * 8;
     t.ex = x0 + Math.cos(t.mid) * (R + 2); t.ey = y0 + Math.sin(t.mid) * (R + 2);
     // plain left/top (no CSS translate), so nothing slides when a label first appears; transform is only used for the hover scale
