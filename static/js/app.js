@@ -455,13 +455,24 @@ function marketOpen() {            // IDX trades Mon-Fri, roughly 09:00-16:00 WI
 }
 const TREASURY_FACTOR = 0.998;   // fallback only: Treasury's sell price was 0.2% under the Yahoo-based spot estimate when checked on 26 Nov 2026
 const JAGO_SELL = 0.99701;       // the Bank Jago gold pocket sells at 0.99701 x Treasury's website sell price (measured on 27 Nov 2026, constant over 7 readings)
+// Where the gold price comes from right now: 'treasury' (Treasury website, fresh), 'yahoo' (Treasury failed, so a Yahoo estimate), or 'saved' (nothing loaded, last saved price)
+function goldSource() {
+  const t = quotes['TREASURY_SELL'], g = quotes['GC=F'], fx = quotes['USDIDR=X'];
+  if (t && t.price && !t.stale) return 'treasury';
+  if (g && fx && g.price && fx.price) return 'yahoo';
+  return 'saved';
+}
 function livePrice() {
-  const t = quotes['TREASURY_SELL'];   // Treasury's own sell price per gram, taken from its website
-  if (t && t.price) return Math.round(t.price * JAGO_SELL);
-  const g = quotes['GC=F'], fx = quotes['USDIDR=X'];
-  if (g && fx && g.price && fx.price) return Math.round(g.price * fx.price / 31.1034768 * TREASURY_FACTOR);
+  const src = goldSource();
+  if (src === 'treasury') return Math.round(quotes['TREASURY_SELL'].price * JAGO_SELL);   // Treasury's own sell price per gram, adjusted to the Jago pocket
+  if (src === 'yahoo') return Math.round(quotes['GC=F'].price * quotes['USDIDR=X'].price / 31.1034768 * TREASURY_FACTOR * JAGO_SELL);
   return S.wealth.gold.lastAuto || 0;
 }
+const GOLD_INFO = {   // the note and the source label for each of the three cases
+  treasury: {src: 'Source: Treasury website, adjusted to Bank Jago', note: 'These values are estimates. The gold price comes directly from the Treasury website and is adjusted to match the Bank Jago gold pocket, so it can differ slightly from your Jago app. Check the Jago app for your exact figures.'},
+  yahoo: {src: 'Source: Yahoo Finance gold futures (Treasury is unavailable)', note: "These values are estimates. Treasury's price could not be loaded, so the gold price is estimated from Yahoo Finance gold futures and the USD to IDR rate. It can be off by about 1% from your Jago app. Check the Jago app for your exact figures."},
+  saved: {src: 'Source: last saved price (no live price available)', note: 'These values are estimates. No live gold price could be loaded, so the last saved price is shown. Check the Jago app for your exact figures.'},
+};
 async function loadQuotes(force) {
   if (typeof S === 'undefined' || !S || !S.wealth) return;
   const hs = S.wealth.stocks.holdings;
@@ -616,11 +627,11 @@ function goldPanel() {
   const gc = goldCalc(), items = [...S.wealth.gold.items].sort((a, b) => b.date.localeCompare(a.date));
   const box = (label, val, cls = '', sub = '') => `<div class="stat"><div class="s">${label}</div><b class="${cls}">${val}</b>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
   return `
-  <div class="note"><span class="ni">ⓘ</span><div>${GUEST ? 'These values are made up for this demo. The gold price is calculated from simulated gold futures and a simulated USD to IDR rate.' : "These values are estimates. The price comes from the Treasury website and is adjusted to match the Bank Jago gold pocket, so it can differ slightly from your Jago app. Check the Jago app for your exact figures."}</div></div>
+  <div class="note"><span class="ni">ⓘ</span><div>${GUEST ? 'These values are made up for this demo. The gold price is calculated from simulated gold futures and a simulated USD to IDR rate.' : GOLD_INFO[goldSource()].note}</div></div>
   <div class="grid g4" style="margin-bottom:14px">
     ${box('Total grams', gc.grams.toLocaleString('en-US', {maximumFractionDigits: 6}) + ' g')}
     ${box('Invested', rp(gc.paid))}
-    ${box('Value now', rp(gc.value), '', gc.price ? 'Live estimate' : 'Loading price…')}
+    ${box('Value now', rp(gc.value), '', gc.price ? (GUEST ? 'Simulated price' : goldSource() === 'treasury' ? 'Treasury, adjusted to Bank Jago' : goldSource() === 'yahoo' ? 'Yahoo Finance estimate' : 'Last saved price') : 'Loading price…')}
     ${box('P&L', (gc.pl > 0 ? '+' : '') + rp(gc.pl) + ' (' + signed(gc.ret) + ')', plClass(gc.pl))}
   </div>
   <div class="card" style="margin-bottom:14px">
@@ -633,7 +644,7 @@ function goldPanel() {
   <div class="card">
     <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Gold purchases</div>
       <div class="row" style="margin-left:auto;gap:12px"><span class="s">Today's price per gram</span><b class="price-amt">${gc.price ? rp(gc.price) : 'Loading…'}</b><span class="live on"><i></i>Live</span></div></div>
-    <div class="s" style="margin-bottom:10px">Each new purchase is taken from your cash saving. ${GUEST ? 'The price is simulated for this demo.' : "The live price comes from the Treasury website, adjusted to match the sell price in the Bank Jago gold pocket."}</div>
+    <div class="s" style="margin-bottom:10px">Each new purchase is taken from your cash saving. ${GUEST ? 'The price is simulated for this demo.' : GOLD_INFO[goldSource()].src + '.'}</div>
     <form id="gadd" onsubmit="addGold(event)"></form>
     <table class="crud">
       <tr><th style="width:150px">Date</th><th class="r" style="width:120px">Grams</th><th class="r">Paid</th><th class="r">Price per gram</th><th class="r">Value now</th><th class="r">P&L</th><th>Remarks</th><th style="width:130px"></th></tr>
