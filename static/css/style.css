@@ -139,6 +139,7 @@ table.crud td:last-child{white-space:nowrap}tr.editing td{background:rgba(70,150
 .dnode .dt{position:relative;font-size:13px;font-weight:900;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .dnode.hl .dt{padding-right:54px}
 .dnode .da{position:relative;font-size:16px;font-weight:900;margin-top:4px}
+.dnode .dlines{position:relative;margin-top:6px;padding:4px 10px;border-radius:12px;background:rgba(255,255,255,.4);box-shadow:inset 0 1px 1px rgba(255,255,255,.55)}
 .dnode .ds{position:relative;font-size:11px;font-weight:700;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dnode.click{cursor:pointer}
 .dnode .mini{position:absolute;right:12px;top:12px;width:42px;height:20px;object-fit:contain;background:linear-gradient(180deg,#fff,#eef2fb);border-radius:7px;padding:2px 3px;box-shadow:0 2px 5px rgba(20,30,90,.15),inset 0 1px 1px #fff}
@@ -648,3 +649,138 @@ html.booting aside,html.booting main{visibility:hidden}
 .slipv{width:min(980px,100%);height:min(88vh,1100px);padding:18px 18px 18px;display:flex;flex-direction:column;text-align:left}
 .slipv-h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 4px 12px}
 .slipv iframe{flex:1;width:100%;border:0;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px rgba(40,50,120,.12)}
+
+/* diagram: dashed = possible, full line = it really happened; purple frame = total wealth */
+.diagram svg path.dash{stroke-dasharray:9 8;stroke-linecap:butt}
+.enter .diagram svg path.dash{stroke-dasharray:9 8;stroke-dashoffset:0;animation:fadeIn .5s ease .9s backwards}
+.dwrap{position:absolute;border-radius:30px;display:flex;align-items:flex-start;gap:8px;padding:13px 20px;font-size:12px;font-weight:900;color:#5b4bc4;
+  background:linear-gradient(160deg,rgba(160,140,255,.22),rgba(125,105,240,.10));border:1.5px solid rgba(125,105,240,.38);
+  box-shadow:0 10px 24px rgba(90,70,210,.10),inset 0 1px 1px rgba(255,255,255,.75),inset 0 -10px 16px rgba(125,105,240,.08)}
+.dwrap b{color:#2f2590}
+
+/* the three money-moving cards on the Stocks tab: side by side, fields stacked */
+.actions{align-items:stretch}
+.actions .act-d{margin-top:6px;min-height:50px}
+.actions .act-a{margin-top:8px;margin-bottom:12px}
+form.add.stack{flex-direction:column;align-items:stretch;flex-wrap:nowrap;gap:10px;margin-top:0}
+form.add.stack>input,form.add.stack>.cs,form.add.stack>div,form.add.stack>button{flex:none;width:100%}
+form.add.stack>button{height:44px;margin-top:4px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pair>*{min-width:0}
+/* every table's column headings are centred (only the headings, the cells keep their own alignment) */
+th,th.r{text-align:center}
+.pair{grid-template-columns:1.15fr 1fr;gap:8px}
+.pair .cs-btn{font-size:13px;gap:6px;padding:0 9px}
+.pair .cs-chev{margin-left:auto}
+.dwrap{flex-direction:column;gap:4px;padding-top:12px;padding-right:20px;align-items:flex-start}
+.dwrap span{font-size:13px;line-height:1.2;font-weight:900}
+.dwrap b{font-size:16px;line-height:1.2;font-weight:900}
+.dwrap span{color:#2f2590}
+.dwrap .wico{position:absolute;top:13px;width:42px;height:20px;display:grid;place-items:center;font-style:normal;color:#3b3fb5;background:linear-gradient(180deg,#fff,#eef2fb);border-radius:7px;box-shadow:0 2px 5px rgba(20,30,90,.15),inset 0 1px 0 #fff}
+.dwrap .wico svg{display:block}
+.dwrap .wico{display:flex;align-items:center;justify-content:center;padding:0}
+.dwrap .wico svg{margin:0;flex:none}
+.diagram .dwrap .wico svg{position:static;overflow:hidden}
+
+/* ===== dashboard charts ===== */
+.chartbar{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:30px 0 14px}
+.chartfilter{width:230px}
+.charts{align-items:stretch}
+@media(min-width:1201px){.charts{grid-template-columns:5fr 6fr}}
+.chartcard{display:flex;flex-direction:column}
+.chead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;min-height:42px}
+.chead .t{font-size:18px;font-weight:900}
+.donutwrap{display:flex;align-items:center;gap:22px;flex-wrap:wrap;flex:1}
+.dcanvas{position:relative;width:230px;height:230px;flex:none;margin:0 auto}
+.tcanvas{position:relative;height:310px;flex:1;min-height:260px}
+.chartcard .hidden{display:none}
+.clegend{flex:1;min-width:190px;display:flex;flex-direction:column;gap:6px}
+.lrow{display:grid;grid-template-columns:12px 1fr auto 56px;align-items:center;gap:10px;padding:8px 12px;border-radius:14px;font-size:13px;background:linear-gradient(145deg,rgba(255,255,255,.7),rgba(255,255,255,.35));border:1px solid rgba(255,255,255,.75);box-shadow:0 3px 8px rgba(40,50,120,.06),inset 0 1px 1px #fff}
+.lrow i{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 -2px 3px rgba(0,0,0,.15)}
+.lrow .ln{font-weight:800;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow b{font-weight:900}.lrow .lp{text-align:right;color:var(--mute);font-weight:800;font-size:12px}
+.cempty{padding:30px 10px;text-align:center}
+.seg{display:inline-flex;gap:2px;padding:4px;border-radius:16px;background:linear-gradient(145deg,rgba(255,255,255,.6),rgba(255,255,255,.3));border:1px solid rgba(255,255,255,.75);box-shadow:inset 0 1px 1px #fff,0 4px 10px rgba(40,50,120,.07)}
+.seg button{border:0;background:none;font:inherit;font-weight:800;font-size:12px;padding:7px 12px;border-radius:12px;cursor:pointer;color:#4b5268;transition:color .15s,background .15s}
+.seg button:hover:not(.on){color:#e08a00;background:rgba(255,255,255,.5)}
+.seg button.on{background:linear-gradient(180deg,#ffd877,#ffb02b 55%,#f59a00);color:#3a2600;box-shadow:0 3px 8px rgba(245,154,0,.35),inset 0 1px 1px rgba(255,255,255,.6)}
+@media(max-width:700px){.chartfilter{width:100%}.dcanvas{width:210px;height:210px}.seg button{padding:7px 9px}}
+.charts>*,.chartcard,.tcanvas,.dcanvas{min-width:0}
+.tcanvas canvas{max-width:100%}
+.chartbar h2{justify-content:flex-start;gap:12px;align-items:baseline}
+.donutwrap{flex-direction:column;align-items:stretch;flex-wrap:nowrap;gap:16px}
+.clegend{min-width:0;width:100%;flex:none}
+.lrow{grid-template-columns:12px 1fr auto 62px}
+/* the canvas must not take part in the layout, otherwise it keeps growing taller every time the chart is redrawn */
+.tcanvas canvas,.dcanvas canvas{position:absolute;left:0;top:0}
+/* donut with labels around it: narrower card and shorter, the trend chart gets the room */
+@media(min-width:1201px){.charts{grid-template-columns:9fr 14fr}}
+.dcanvas{width:100%;height:300px;margin:0;flex:none}
+.tcanvas{height:300px;min-height:260px}
+#donutLegend{display:block}
+/* ===== charts, redesign: glass label pills around the donut, centre text in HTML ===== */
+@media(min-width:1201px){.charts{grid-template-columns:10fr 13fr}}
+.chead .s{font-size:12px;font-weight:800}
+.dcanvas{position:relative;width:100%;height:300px}
+.dlabels{position:absolute;inset:0;pointer-events:none}
+.dpill{position:absolute;pointer-events:auto;display:flex;align-items:center;gap:8px;padding:6px 12px 6px 10px;border-radius:14px;white-space:nowrap;cursor:default;
+  background:linear-gradient(145deg,rgba(255,255,255,.86),rgba(255,255,255,.55));border:1px solid rgba(255,255,255,.95);
+  box-shadow:0 6px 16px rgba(40,50,120,.10),inset 0 1px 1px #fff;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  transform:translateY(-50%);transform-origin:left center;transition:opacity .25s ease,transform .25s ease,box-shadow .25s ease}
+.dpill[data-side=l]{transform:translate(-100%,-50%);transform-origin:right center}
+.dpill i{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 0 3px rgba(255,255,255,.8)}
+.dpill b{display:block;font-size:12px;font-weight:900;color:var(--ink);line-height:1.2}
+.dpill span{display:block;font-size:11px;font-weight:800;color:var(--mute);line-height:1.2}
+.dpill.dim{opacity:.3}
+.dpill.on{box-shadow:0 10px 22px rgba(40,50,120,.18),inset 0 1px 1px #fff;transform:translateY(-50%) scale(1.07)}
+.dpill[data-side=l].on{transform:translate(-100%,-50%) scale(1.07)}
+.dcenter{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;max-width:44%}
+.dc-t{font-size:12px;font-weight:900;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .2s}
+.dc-a{font-size:18px;font-weight:900;color:var(--ink);white-space:nowrap;margin-top:2px}
+.dc-p{font-size:12px;font-weight:800;color:var(--mute)}
+@media(max-width:700px){.dpill{padding:5px 9px}.dpill b{font-size:11px}.dpill span{font-size:10px}.dc-a{font-size:15px}}
+.dpill{gap:7px;padding:5px 10px 5px 8px;border-radius:12px}
+.dpill i{width:9px;height:9px}
+.dpill b{font-size:11.5px}.dpill span{font-size:10.5px}
+.dpill{visibility:hidden}.dpill.placed{visibility:visible}   /* a label shows only once it sits next to its slice */
+.dpill.dim{opacity:.45}
+/* donut labels like Power BI: plain text hugging the ring (no boxes) */
+.dpill{background:none;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;padding:0;gap:6px;border-radius:0}
+.dpill[data-side=l]{flex-direction:row-reverse;text-align:right}
+.dpill i{width:8px;height:8px;box-shadow:none}
+.dpill b{font-size:12px;font-weight:900}.dpill span{font-size:11px;font-weight:800}
+.dpill.on{box-shadow:none}
+.dpill.on b{color:var(--ink)}
+/* switching chart type or filter: fade out, redraw, fade in */
+.dcanvas,.tcanvas{transition:opacity .2s ease,transform .2s ease}
+.dcanvas.swapping,.tcanvas.swapping{opacity:0;transform:translateY(6px) scale(.99)}
+/* donut labels: the hovered one grows a little, the others turn grey (smooth) */
+.dpill{transition:opacity .3s ease,transform .3s ease,filter .3s ease}
+.dpill.dim{opacity:.4;filter:grayscale(1)}
+.dpill.on{transform:translateY(-50%) scale(1.08)}
+.dpill[data-side=l].on{transform:translate(-100%,-50%) scale(1.08)}
+.dpill.on span{color:var(--ink)}
+.dc-t{font-size:.68em}.dc-a{font-size:1em}.dc-p{font-size:.66em}
+/* narrow screens: the donut labels become a list under the ring */
+#donutLegend.dlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 16px;margin-top:8px}
+#donutLegend.dlist .dpill{position:static;visibility:visible;transform:none;flex-direction:row;text-align:left}
+#donutLegend.dlist .dpill.on{transform:scale(1.04)}
+/* labels are positioned by their top-left corner; transform is only the hover scale */
+.dpill,.dpill[data-side=l]{transform:none}
+.dpill[data-side=r]{transform-origin:left center}.dpill[data-side=l]{transform-origin:right center}
+.dpill.on,.dpill[data-side=l].on{transform:scale(1.08)}
+/* trend chart tooltip: a small table in the same dark glass as the site's other tooltips */
+#chartTip{position:fixed;z-index:6000;pointer-events:none;padding:10px 12px;border-radius:14px;color:#fff;font-size:12px;font-weight:800;
+  background:rgba(27,32,51,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 22px rgba(20,25,60,.3),inset 0 1px 1px rgba(255,255,255,.18);
+  opacity:0;transform:translateY(4px);transition:opacity .15s ease,transform .15s ease}
+#chartTip.show{opacity:1;transform:none}
+#chartTip .ct-h{font-weight:900;margin-bottom:6px}
+#chartTip table{border-collapse:collapse}
+#chartTip td{padding:2px 0;border:0;white-space:nowrap}
+#chartTip td+td{padding-left:16px}
+#chartTip td.r{text-align:right;font-variant-numeric:tabular-nums}
+#chartTip td.p{color:rgba(255,255,255,.65)}
+#chartTip i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;vertical-align:-1px}
+#chartTip tr.tot td{padding-top:6px;border-top:1px solid rgba(255,255,255,.15);font-weight:900}
+#chartTip tr.cap td{color:#ff8fa5}
+#chartTip .ct-none{color:rgba(255,255,255,.7)}

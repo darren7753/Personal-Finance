@@ -54,7 +54,7 @@ function cycleOfDate(date) {
 function calcAll() {
   let prev = S.basePrevSavings, prevC = null;
   return S.cycles.map(c => {
-    if (untracked(c)) return {c, prev, save: 0, fixedTotal: 0, afterSave: 0, afterFixed: 0, dailyDate: 0, free: 0, moved: 0, transferred: 0, total: prev, untracked: true};
+    if (untracked(c)) return {c, prev, save: 0, fixedTotal: 0, afterSave: 0, afterFixed: 0, dailyDate: 0, free: 0, moved: 0, transferred: 0, returned: 0, other: 0, toStock: 0, toGold: 0, fromStock: 0, fromGold: 0, total: prev, untracked: true};
     ['daily', 'date', 'free'].forEach(key => { c.env[key].carry = prevC ? Math.max(0, left(prevC.env[key])) : 0; });
     const save = Math.round(c.salary * c.savePct / 100);
     const fixedTotal = c.fixed.reduce((a, x) => a + x.amount, 0);
@@ -63,8 +63,14 @@ function calcAll() {
     const free = afterFixed - dailyDate;
     c.env.free.amount = free;
     const moved = Object.values(c.env).reduce((a, e) => a + e.moved, 0);
-    const transferred = ((S.wealth && S.wealth.transfers) || []).filter(t => cycleOfDate(t.date) === c).reduce((a, t) => a + t.amount, 0);
-    const k = {c, prev, save, fixedTotal, afterSave, afterFixed, dailyDate, free, moved, transferred, total: prev + save + moved - transferred};
+    // a transfer is money leaving cash saving (investments, other spending) unless `back` is set: then it is a sale coming back in
+    const trs = ((S.wealth && S.wealth.transfers) || []).filter(t => cycleOfDate(t.date) === c);
+    const sum = f => trs.filter(f).reduce((a, t) => a + t.amount, 0);
+    const toStock = sum(t => !t.back && t.type === 'stockbit'), toGold = sum(t => !t.back && t.type === 'gold');
+    const fromStock = sum(t => t.back && t.type === 'stockbit'), fromGold = sum(t => t.back && t.type === 'gold');
+    const other = sum(t => !t.back && t.type === 'expense'), transferred = toStock + toGold, returned = fromStock + fromGold;
+    const k = {c, prev, save, fixedTotal, afterSave, afterFixed, dailyDate, free, moved, transferred, returned, other, toStock, toGold, fromStock, fromGold,
+      total: prev + save + moved - transferred - other + returned};
     prev = k.total; prevC = c;
     return k;
   });
@@ -138,6 +144,7 @@ function decorate(entering) {
   wrapTables();
   fitDiagram();
   decorateDiagram();
+  drawCharts(undefined, entering);   // dashboard charts (static/js/charts.js); before applyHide so the legend numbers get masked too
   if (entering && !reduceMotion && !hideNums) document.querySelectorAll('.big-num').forEach(countUp);
   applyHide();
   centerTab();
@@ -191,7 +198,11 @@ function csSyncAll() { document.querySelectorAll('select[data-cs]').forEach(csSy
 function csOpen(sel, btn) {
   csClose(); csOpenBtn = btn; btn.classList.add('open');
   const m = document.createElement('div'); m.className = 'cs-menu'; m.setAttribute('role', 'listbox');
-  m.innerHTML = [...sel.options].map((o, i) => `<div class="cs-opt ${i === sel.selectedIndex ? 'on' : ''}" role="option" tabindex="-1" data-i="${i}">${csOptIcon(o.value)}<span class="cs-label">${esc(o.text)}</span>${i === sel.selectedIndex ? `<span class="cs-check">${icon('check', 'filled', 16)}</span>` : ''}</div>`).join('');
+  // category menus: the chosen category first, Other last, the rest A to Z (each option keeps its real index in data-i)
+  const isCat = [...sel.options].length && [...sel.options].every(o => CATS.includes(o.value));
+  const order = [...sel.options].map((o, i) => i);
+  if (isCat) order.sort((a, b) => (b === sel.selectedIndex) - (a === sel.selectedIndex) || (sel.options[a].value === 'Other') - (sel.options[b].value === 'Other') || sel.options[a].text.localeCompare(sel.options[b].text));
+  m.innerHTML = order.map(i => [sel.options[i], i]).map(([o, i]) => `<div class="cs-opt ${i === sel.selectedIndex ? 'on' : ''}" role="option" tabindex="-1" data-i="${i}">${csOptIcon(o.value)}<span class="cs-label">${esc(o.text)}</span>${i === sel.selectedIndex ? `<span class="cs-check">${icon('check', 'filled', 16)}</span>` : ''}</div>`).join('');
   document.body.appendChild(m); csMenu = m;
   const r = btn.getBoundingClientRect(), mh = Math.min(m.scrollHeight + 16, 340), below = innerHeight - r.bottom - 14, above = r.top - 14, up = below < mh && above > below;
   m.style.minWidth = Math.max(r.width, 190) + 'px'; m.style.left = Math.max(8, Math.min(r.left, innerWidth - Math.max(r.width, 190) - 12)) + 'px';
@@ -204,7 +215,7 @@ function csOpen(sel, btn) {
     const opts = [...m.querySelectorAll('.cs-opt')], at = opts.indexOf(document.activeElement);
     if (e.key === 'ArrowDown') { e.preventDefault(); opts[Math.min(opts.length - 1, at + 1)].focus(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); opts[Math.max(0, at - 1)].focus(); }
-    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (at >= 0) pick(at); }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (at >= 0) pick(Number(opts[at].dataset.i)); }
     else if (e.key === 'Escape' || e.key === 'Tab') { csClose(); btn.focus(); }
   });
   (m.querySelector('.cs-opt.on') || m.querySelector('.cs-opt')).focus({preventScroll: true});
@@ -294,9 +305,10 @@ const BANK = {bca: '#0060AF', jago: '#FFB020', gopay: '#00AED5', fixed: '#ff2d55
 // The branched diagram is always drawn the same way (the user rejected a stacked version without branches). When the card is
 // too narrow for five columns of nodes (nodes never go below 200 px) the card scrolls sideways.
 let diagAvail = 0, lastNW = 0;
-const nwFor = avail => Math.max(200, Math.min(300, Math.floor((avail - 4 * 28) / 5)));   // 200 px is the narrowest node that still fits its longest line ("20% this cycle  +IDR 2,596,320")
+const DPAD = 22;   // room at the left of the diagram for the purple Total wealth frame
+const nwFor = avail => Math.max(200, Math.min(300, Math.floor((avail - DPAD - 4 * 28) / 5)));   // 200 px is the narrowest node that still fits its longest line ("20% this cycle  +IDR 2,596,320")
 function decorateDiagram() {
-  document.querySelectorAll('.diagram svg path').forEach(p => p.setAttribute('pathLength', '1'));
+  document.querySelectorAll('.diagram svg path:not(.dash)').forEach(p => p.setAttribute('pathLength', '1'));   // dashed arrows are not drawn in, they fade in
   document.querySelectorAll('.dnode').forEach((n, i) => { const t = parseFloat(n.style.top); n.style.setProperty('--d', (isNaN(t) ? 0.1 + i * 0.05 : 0.12 + t / 1000).toFixed(2) + 's'); });
 }
 function fitDiagram() {
@@ -308,37 +320,53 @@ function fitDiagram() {
 const ARROW = '#7d87a8';   // one neutral colour for every connector arrow
 const RING = {'#ffe9ee': 'red', '#e8f7ec': 'green', '#e3effa': 'blue'};
 function diagram(k) {
-  const c = k.c, S = c.salary, env = c.env;
+  const c = k.c, S = c.salary, env = c.env, sc = stockCalc(), gc = goldCalc();
   const avail = diagAvail || (($('#view').clientWidth || 1100) - 60);
-  const CG = 28, NH = 80, LV = 50, NW = nwFor(avail), G = '#0a9d58';
+  const CG = 28, NH = 80, LV = 50, NW = nwFor(avail), G = '#0a9d58', PAD = DPAD;
   lastNW = NW;
   const pct = v => pc2(v / S * 100) + ' of salary';
-  const X = i => i * (NW + CG);                 // col 0 = saving, 1 = fixed, 2-4 = budgets
-  const Wd = 5 * NW + 4 * CG;
+  const X = i => PAD + i * (NW + CG);           // col 0-1 = saving + investments, 1 = fixed, 2-4 = budgets
+  const Wd = PAD + 5 * NW + 4 * CG;
   const Y = [0, 1, 2, 3, 4].map(i => i * (NH + LV));
   const nodes = [], paths = [];
   const add = n => { nodes.push(n); return n; };
-  const arrowDown = (a, b) => {   // straight/curved arrow from bottom of a to top of b
-    const x1 = a.cx, ya = a.y + (a.h || NH), x2 = b.ax ?? b.cx, yb = b.y - 10, my = (ya + yb) / 2;
-    paths.push(`<path d="M${x1},${ya} C${x1},${my} ${x2},${my} ${x2},${yb}" fill="none" stroke="${ARROW}" stroke-width="3.5" stroke-linecap="round"/>
-      <polygon points="${x2},${b.y} ${x2 - 6.5},${b.y - 11} ${x2 + 6.5},${b.y - 11}" fill="${ARROW}"/>`);
+  // every connector is DASHED while it is only a possibility and becomes a full line once the money really moved
+  const stroke = real => real ? `stroke="${ARROW}" stroke-linecap="round"` : `class="dash" stroke="${ARROW}"`;
+  const head = (x, y, up) => `<polygon points="${x},${y} ${x - 6.5},${y + (up ? 11 : -11)} ${x + 6.5},${y + (up ? 11 : -11)}" fill="${ARROW}"/>`;
+  const arrowDown = (a, b, real = true) => {   // curved arrow from the bottom centre of a to the top centre of b
+    const x1 = a.cx, ya = a.y + (a.h || NH), x2 = b.cx, yb = b.y - 10, my = (ya + yb) / 2;
+    paths.push(`<path d="M${x1},${ya} C${x1},${my} ${x2},${my} ${x2},${yb}" fill="none" ${stroke(real)} stroke-width="3.5"/>${head(x2, b.y, false)}`);
+  };
+  const vArrow = (x, y1, y2, real) => {          // straight vertical arrow, head at y2 (up or down)
+    const up = y2 < y1, ye = y2 + (up ? 10 : -10);
+    paths.push(`<path d="M${x},${y1} V${ye}" fill="none" ${stroke(real)} stroke-width="3.5"/>${head(x, y2, up)}`);
   };
 
   const remW = NW, remCx = (X(1) + X(4) + NW) / 2, cashCx = X(0) + NW / 2;
   const sal = add({id: 'sal', cx: (cashCx + remCx) / 2, y: Y[0], w: NW, title: 'Salary', sub: fmtDate(c.payday), amt: S, color: BANK.bca, bg: BANK.bca, fg: '#fff', logo: 'bca'});
   const cash = add({id: 'cash', cx: cashCx, y: Y[1], w: NW, title: `${pc2(c.savePct)} to cash saving`, sub: pct(k.save), amt: k.save, color: BANK.bca, bg: '#e3effa'});
   const rem = add({id: 'rem', cx: remCx, y: Y[1], w: remW, title: 'Remaining', sub: `${pc2(100 - c.savePct)} of salary`, amt: k.afterSave, color: BANK.bca, bg: '#e3effa'});
-  const savH = 66 + 14 * (3 + (k.transferred ? 1 : 0)), busY = Y[4] + NH + 28;      // the orange bus line enters the node at its vertical middle
-  const savW = Math.max(NW, 290);   // wider than the other nodes so 'Leftovers moved in' and 'Moved to investments' fit on one line; it grows to the right (column 1 is empty at this height)
-  const sav = add({id: 'sav', cx: X(0) + savW / 2, ax: cashCx, y: busY - savH / 2, w: savW, h: savH, title: 'Cash saving', color: BANK.jago, bg: BANK.jago, fg: '#1a1a1a', logo: 'jago', amt: k.total,
-    lines: [['Previous', rp(k.prev)], [pc2(c.savePct) + ' this cycle', inflow(k.save)], ['Leftovers moved in', inflow(k.moved)], ...(k.transferred ? [['Moved to investments', outflow(k.transferred)]] : [])]});
-  arrowDown(sal, cash, BANK.bca); arrowDown(sal, rem, BANK.bca); arrowDown(cash, sav, BANK.jago);
+  // Cash saving is as wide as Stocks and Gold together, so the arrows to them run straight down from it
+  const GAP2 = 12, savW = 2 * NW + GAP2, savH = 66 + 14 * 6 + 16, busY = Y[4] + NH + 56;      // Stocks and Gold sit close together; the lines from the budgets all end at the middle of the node's right edge
+  const sav = add({id: 'sav', cx: X(0) + savW / 2, y: busY - savH / 2, w: savW, h: savH, title: 'Cash saving', color: BANK.jago, bg: BANK.jago, fg: '#1a1a1a', logo: 'jago', amt: k.total,
+    lines: [['Previous savings', rp(k.prev)], [`${pc2(c.savePct)} of ${c.label} salary`, inflow(k.save)], ['Leftovers moved in', inflow(k.moved)],
+      ['Moved to investments', outflow(k.transferred)], ['Moved from investments', inflow(k.returned)], ['Other spending', outflow(k.other)]]});
+  arrowDown(sal, cash); arrowDown(sal, rem); arrowDown(cash, sav);
+
+  // stocks and gold sit under cash saving; two arrows each way (down = invested, up = sold and moved back)
+  const ay = sav.y + savH + 58, cb = sav.y + savH;
+  const stk = add({id: 'stk', cx: X(0) + NW / 2, y: ay, w: NW, title: 'Stocks', sub: 'Total equity', amt: sc.equity, bg: '#26262b', fg: '#fff', logo: 'stockbit'});
+  const gld = add({id: 'gld', cx: X(0) + NW + GAP2 + NW / 2, y: ay, w: NW, title: 'Gold', sub: 'Total value', amt: gc.value, bg: '#ffd60a', fg: '#3a2e00', logo: 'treasury'});
+  vArrow(stk.cx - 16, cb, ay, k.toStock > 0); vArrow(stk.cx + 16, ay, cb, k.fromStock > 0);
+  vArrow(gld.cx - 16, cb, ay, k.toGold > 0);  vArrow(gld.cx + 16, ay, cb, k.fromGold > 0);
+  const wrapTop = sav.y - 60, wrapBottom = ay + NH + 22;
 
   // fixed expenses: single node
   const fix = add({id: 'fix', cx: X(1) + NW / 2, y: Y[2], w: NW, title: 'Fixed expenses', sub: pct(k.fixedTotal), tip: `${c.fixed.length} ${c.fixed.length === 1 ? 'item' : 'items'}`, amt: k.fixedTotal, color: BANK.fixed, bg: '#ffe9ee', neg: 1});
-  arrowDown(rem, fix, BANK.fixed);
+  arrowDown(rem, fix);
 
-  // budgets: budget → real expenses → remaining → my cash saving
+  // budgets: budget → real expenses → remaining → cash saving (dashed until the leftover is really moved)
+  const busDash = [], busSolid = [];
   [['daily', 'gopay', 2], ['date', 'jago', 3], ['free', 'jago', 4]].forEach(([key, w, col]) => {
     const e = env[key], color = BANK[w], sp = spent(e), rest = e.amount + (e.carry || 0) - sp, cx = X(col) + NW / 2;
     const b = add({id: key + 'b', cx, y: Y[2], w: NW, title: e.name, sub: pct(e.amount), tip: e.carry ? `Includes ${rp(e.carry)} carried over` : '', amt: e.amount + (e.carry || 0), color, logo: w, bg: color, fg: w === 'gopay' ? '#fff' : '#1a1a1a'});
@@ -346,36 +374,39 @@ function diagram(k) {
     const rm = add({id: key + 'r', cx, y: Y[4], w: NW, title: 'Remaining', color: G, bg: '#e8f7ec', pos: 1, amt: rest,
       sub: e.moved ? 'Moved · ' + pct(rest) : pct(rest), tip: e.moved ? 'Moved to cash saving. Click to undo.' : rest > 0 ? 'Click to move to cash saving.' : 'Nothing left to move.',
       click: e.moved ? `undoMove('${key}')` : rest > 0 ? `moveLeft('${key}')` : ''});
-    arrowDown(rem, b, color); arrowDown(b, ex, BANK.fixed); arrowDown(ex, rm, G);
-    // remaining → my cash saving (bus under the row, entering the saving node from the right)
+    arrowDown(rem, b); arrowDown(b, ex); arrowDown(ex, rm);
     const sx = X(0) + savW + 2;
-    paths.push(`<path d="M${cx},${Y[4] + NH} V${busY - 22} Q${cx},${busY} ${cx - 22},${busY} H${sx + 12}" fill="none" stroke="${ARROW}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`);
+    // each line leaves its own node, then they bend like branches and meet at the same end point on the right edge of Cash saving
+    const ex0 = sx + 12;
+    (e.moved ? busSolid : busDash).push(`<path d="M${cx},${Y[4] + NH} C${cx},${busY} ${ex0 + (cx - ex0) * 0.45},${busY} ${ex0},${busY}" fill="none" ${stroke(!!e.moved)} stroke-width="3.5"/>`);
   });
+  paths.push(...busDash, ...busSolid);   // full lines are drawn last so they stay on top where the three buses overlap
   paths.push(`<polygon points="${X(0) + savW + 2},${busY} ${X(0) + savW + 14},${busY - 6.5} ${X(0) + savW + 14},${busY + 6.5}" fill="${ARROW}"/>`);
 
   const nodeHtml = (n, abs) => {
     const h = n.h || NH, place = abs ? `left:${n.cx - n.w / 2}px;top:${n.y}px;width:${n.w}px;height:${h}px;` : '';
     return `<div class="dnode ${n.logo ? 'hl' : ''} ${n.click ? 'click' : ''}" ${RING[n.bg] ? `data-ring="${RING[n.bg]}"` : ''} ${n.click ? `onclick="${n.click}"` : ''} ${n.tip ? `data-tip="${esc(n.tip)}"` : ''} style="${place}background:${n.bg || '#fff'};color:${n.fg || 'inherit'}">
-      ${n.logo ? `<img class="mini" src="/static/logos/${n.logo}.svg">` : ''}
+      ${n.logo ? `<img class="mini" src="/static/logos/${n.logo}.${n.logo === 'treasury' ? 'png' : 'svg'}">` : ''}
       <div class="dt">${esc(n.title)}</div>
       <div class="da ${n.neg ? 'neg' : ''} ${n.pos ? 'pos' : ''}" style="${n.fg ? 'color:' + n.fg + ';' : ''}${n.big ? 'font-size:20px' : ''}">${rp(n.amt)}</div>
-      ${n.lines ? n.lines.map(l => `<div class="ds" style="display:flex;justify-content:space-between;${n.fg ? 'color:' + n.fg + ';opacity:.85' : ''}"><span>${l[0]}</span><b style="color:inherit">${l[1]}</b></div>`).join('') : `<div class="ds" ${n.fg ? `style="color:${n.fg};opacity:.8"` : ''}>${esc(n.sub)}</div>`}</div>`;
+      ${n.lines ? `<div class="dlines">${n.lines.map(l => `<div class="ds" style="display:flex;justify-content:space-between;${n.fg ? 'color:' + n.fg + ';opacity:.85' : ''}"><span>${l[0]}</span><b style="color:inherit">${l[1]}</b></div>`).join('')}</div>` : `<div class="ds" ${n.fg ? `style="color:${n.fg};opacity:.8"` : ''}>${esc(n.sub)}</div>`}</div>`;
   };
 
-  const Ht = Math.max(...nodes.map(n => n.y + (n.h || NH)));
-  return `<div class="diagram" style="width:${Wd}px;height:${Ht + 40}px;margin:0 auto"><svg width="${Wd}" height="${Ht + 40}">${paths.join('')}</svg>${nodes.map(n => nodeHtml(n, true)).join('')}</div>`;
+  const Ht = Math.max(wrapBottom, ...nodes.map(n => n.y + (n.h || NH)));
+  const frame = `<div class="dwrap" style="left:0;top:${wrapTop}px;width:${savW + 2 * PAD}px;height:${wrapBottom - wrapTop}px;padding-left:${PAD + 16}px"><span>Total wealth</span><b>${rp(k.total + sc.equity + gc.value)}</b><i class="wico" style="right:${PAD + 12}px">${icon('diamond', 'filled', 14)}</i></div>`;
+  return `<div class="diagram" style="width:${Wd}px;height:${Ht}px;margin:0 auto">${frame}<svg width="${Wd}" height="${Ht}">${paths.join('')}</svg>${nodes.map(n => nodeHtml(n, true)).join('')}</div>`;
 }
 
 function noTracking(c) {
   return `<div class="note"><span class="ni">ⓘ</span><div>No tracking yet. Spending and wealth are tracked from November 2026, so ${c.label} only has the salary.</div></div>`;
 }
-const slipBtn = c => !GUEST && SLIPS.has(slipKey(c))
+const slipBtn = c => (GUEST || SLIPS.has(slipKey(c)))
   ? `<button type="button" class="slipb" data-tip="Open salary slip" aria-label="Open salary slip" onclick="openSlip('${slipKey(c)}')">${icon('pdf', 'regular', 24)}</button>` : '';   // no slip for that month = no button, the card works the same
 // the slip opens in a pop-up on this page (the browser's own PDF viewer inside an iframe), not in a new tab
 function openSlip(ym) {
   if (mdlOpen) mdlOpen(false);
   const c = S.cycles.find(x => slipKey(x) === ym), back = document.createElement('div'); back.className = 'mdl-back';
-  back.innerHTML = `<div class="mdl slipv" role="dialog" aria-modal="true" aria-label="Salary slip"><div class="slipv-h"><div class="mdl-t">Salary slip${c ? ' · ' + esc(c.label) : ''}</div><button type="button" class="ib del" data-tip="Close" aria-label="Close">${icon('dismiss', 'regular', 20)}</button></div><iframe src="/api/slip/${ym}#view=FitH" title="Salary slip"></iframe></div>`;
+  back.innerHTML = `<div class="mdl slipv" role="dialog" aria-modal="true" aria-label="Salary slip"><div class="slipv-h"><div class="mdl-t">Salary slip${c ? ' · ' + esc(c.label) : ''}</div><button type="button" class="ib del" data-tip="Close" aria-label="Close">${icon('dismiss', 'regular', 20)}</button></div><iframe src="${GUEST ? '/static/demo-salary-slip.pdf' : '/api/slip/' + ym}#view=FitH" title="Salary slip"></iframe></div>`;
   document.body.appendChild(back);
   const done = () => { document.removeEventListener('keydown', key, true); mdlOpen = null; back.classList.remove('show'); setTimeout(() => back.remove(), 160); };
   const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(); } };
@@ -399,7 +430,8 @@ function dash(k) {
     <div class="pocket total"><div class="row">${tile('diamond', 'navy')}<div><div class="name">Total wealth</div></div></div><div class="big-num">${rp(wealthTotal)}</div></div>
   </div>
   <h2>Where your salary goes <span class="s">Log real expenses on the Spending page</span></h2>
-  <div class="card funnelcard">${diagram(k)}</div>`;
+  <div class="card funnelcard">${diagram(k)}</div>
+  ${chartSection()}`;
 }
 
 function envCard(c, key) {
@@ -503,12 +535,32 @@ function stockPanel(k) {
     ${box('Return', signed(sc.ret), plClass(sc.ret))}
     ${box('Total equity', rp(sc.equity))}
   </div>
-  <div class="card" style="margin-bottom:14px">
-    <div class="row" style="margin-bottom:6px"><div class="t" style="font-size:18px">Top up from cash saving</div><div class="s" style="margin-left:auto">Available in cash saving: <b>${rp(k.total)}</b></div></div>
-    <div class="s" style="margin-bottom:10px">Moves money from your cash saving (Bank Jago) to your Stockbit trading balance. Your total wealth stays the same.</div>
-    <form class="add" onsubmit="topUp(event)" style="margin-top:0">
-      <input name="date" type="date" value="${today()}" required style="flex:0 0 160px"><input name="amt" class="money" inputmode="numeric" autocomplete="off" placeholder="Amount" required style="flex:0 0 200px;text-align:right"><input name="note" placeholder="Remarks"><button>Top up</button>
-    </form>
+  <div class="grid g3 actions" style="margin-bottom:14px">
+    <div class="card">
+      <div class="t" style="font-size:18px">Top up from cash saving</div>
+      <div class="s act-d">Moves money from your cash saving (Bank Jago) to your Stockbit trading balance. Your total wealth stays the same.</div>
+      <div class="s act-a">Available in cash saving: <b>${rp(k.total)}</b></div>
+      <form class="add stack" onsubmit="topUp(event)">
+        <input name="date" type="date" value="${today()}" required><input name="amt" class="money" inputmode="numeric" autocomplete="off" placeholder="Amount" required style="text-align:right"><input name="note" placeholder="Remarks"><button>Top up</button>
+      </form>
+    </div>
+    <div class="card">
+      <div class="t" style="font-size:18px">Sell stocks</div>
+      <div class="s act-d">Sells lots of a holding. The money goes to your trading balance. The amount is filled in from the live price, so change it to match the real number in Stockbit.</div>
+      <div class="s act-a">Trading balance: <b>${rp(sc.cash)}</b></div>
+      ${sc.rows.length ? `<form class="add stack" data-kind="stock" onsubmit="sellStock(event)" oninput="sellEst(this,event)" onchange="sellEst(this,event)">
+        <div class="pair"><input name="date" type="date" value="${today()}" required><select name="pick">${sc.rows.map(r => `<option value="${r.i}">${esc(r.h.ticker)} · ${r.h.lots} ${r.h.lots === 1 ? 'lot' : 'lots'}</option>`).join('')}</select></div>
+        <input name="lots" type="number" min="1" placeholder="Lots" required style="text-align:right"><input name="amt" class="money" inputmode="numeric" autocomplete="off" placeholder="Amount received" required style="text-align:right"><button>Sell</button>
+      </form>` : '<div class="s">You have no holdings to sell.</div>'}
+    </div>
+    <div class="card">
+      <div class="t" style="font-size:18px">Withdraw to cash saving</div>
+      <div class="s act-d">Moves money from your Stockbit trading balance back to your cash saving. Your total wealth stays the same.</div>
+      <div class="s act-a">Available in trading balance: <b>${rp(sc.cash)}</b></div>
+      <form class="add stack" onsubmit="withdrawStock(event)">
+        <input name="date" type="date" value="${today()}" required><input name="amt" class="money" inputmode="numeric" autocomplete="off" placeholder="Amount" required style="text-align:right"><input name="note" placeholder="Remarks"><button>Withdraw</button>
+      </form>
+    </div>
   </div>
   <div class="card">
     <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Holdings</div>
@@ -535,7 +587,18 @@ function stockPanel(k) {
         <td class="r ${plClass(r.ret)}"><b>${signed(r.ret)}</b></td>
         <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delHolding(${r.i})">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
     </table>
-  </div>`;
+  </div>
+  ${(() => {
+    const sales = [...(S.wealth.stocks.sales || [])].sort((a, b) => b.date.localeCompare(a.date)), realized = sales.reduce((a, x) => a + x.proceeds - x.cost, 0);
+    return `<div class="card" style="margin-top:14px">
+    <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Sales</div><div class="s" style="margin-left:auto">Realized profit: <b class="${plClass(realized)}">${(realized > 0 ? '+' : '') + rp(realized)}</b></div></div>
+    <table>
+      <tr><th>Date</th><th>Stock</th><th class="r">Lots</th><th class="r">Received</th><th class="r">Cost</th><th class="r">Profit</th><th></th></tr>
+      ${sales.map(x => `<tr><td>${fmtDate(x.date)}</td><td><b>${esc(x.ticker)}</b></td><td class="r">${x.lots}</td><td class="r">${rp(x.proceeds)}</td><td class="r">${rp(x.cost)}</td><td class="r ${plClass(x.proceeds - x.cost)}"><b>${(x.proceeds - x.cost > 0 ? '+' : '') + rp(x.proceeds - x.cost)}</b></td>
+        <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delStockSale('${x.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
+      ${sales.length ? '' : '<tr><td colspan="7" class="s" style="text-align:center;padding:22px">No sales yet. Sell a holding above and it will show here.</td></tr>'}
+    </table></div>`;
+  })()}`;
 }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -554,6 +617,13 @@ function goldPanel() {
     ${box('Invested', rp(gc.paid))}
     ${box('Value now', rp(gc.value), '', gc.price ? 'Live estimate' : 'Loading price…')}
     ${box('P&L', (gc.pl > 0 ? '+' : '') + rp(gc.pl) + ' (' + signed(gc.ret) + ')', plClass(gc.pl))}
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="row" style="margin-bottom:6px"><div class="t" style="font-size:18px">Sell gold</div><div class="s" style="margin-left:auto">You hold <b>${gc.grams.toLocaleString('en-US', {maximumFractionDigits: 6})} g</b></div></div>
+    <div class="s" style="margin-bottom:10px">The money goes to your cash saving. The amount is filled in from the live price, so change it to match the real number in Treasury. The oldest purchases are sold first.</div>
+    <form class="add" data-kind="gold" onsubmit="sellGold(event)" oninput="sellEst(this,event)" onchange="sellEst(this,event)" style="margin-top:0">
+      <input name="date" type="date" value="${today()}" required style="flex:0 0 160px"><input name="grams" type="number" step="any" min="0" placeholder="Grams" required style="flex:0 0 120px;text-align:right"><input name="amt" class="money" inputmode="numeric" autocomplete="off" placeholder="Amount received" required style="flex:0 0 200px;text-align:right"><input name="note" placeholder="Remarks"><button>Sell</button>
+    </form>
   </div>
   <div class="card">
     <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Gold purchases</div>
@@ -576,17 +646,28 @@ function goldPanel() {
         <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delGold('${x.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`; }).join('')}
       ${items.length ? '' : '<tr><td colspan="8" class="s" style="text-align:center;padding:22px">No gold purchases yet. Add your first purchase above.</td></tr>'}
     </table>
-  </div>`;
+  </div>
+  ${(() => {
+    const sales = S.wealth.transfers.filter(t => t.type === 'gold' && t.back).map(t => ({t, cost: (t.cut || []).reduce((a, c) => a + c.paid, 0)})).sort((a, b) => b.t.date.localeCompare(a.t.date)), realized = sales.reduce((a, x) => a + x.t.amount - x.cost, 0);
+    return `<div class="card" style="margin-top:14px">
+    <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Gold sales</div><div class="s" style="margin-left:auto">Realized profit: <b class="${plClass(realized)}">${(realized > 0 ? '+' : '') + rp(realized)}</b></div></div>
+    <table>
+      <tr><th>Date</th><th class="r">Grams</th><th class="r">Received</th><th class="r">Cost</th><th class="r">Profit</th><th>Remarks</th><th></th></tr>
+      ${sales.map(({t, cost}) => `<tr><td>${fmtDate(t.date)}</td><td class="r">${(t.grams || 0).toLocaleString('en-US', {maximumFractionDigits: 6})} g</td><td class="r">${rp(t.amount)}</td><td class="r">${rp(cost)}</td><td class="r ${plClass(t.amount - cost)}"><b>${(t.amount - cost > 0 ? '+' : '') + rp(t.amount - cost)}</b></td><td>${esc(t.note || '—')}</td>
+        <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delTransfer('${t.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
+      ${sales.length ? '' : '<tr><td colspan="7" class="s" style="text-align:center;padding:22px">No gold sales yet. Sell gold above and it will show here.</td></tr>'}
+    </table></div>`;
+  })()}`;
 }
 
 function transferList() {
   const list = [...S.wealth.transfers].sort((a, b) => b.date.localeCompare(a.date));
-  return `<h2>Moved from cash saving <span class="s">Investments and other spending, also shown on the Spending page</span></h2>
+  return `<h2>Moved to and from cash saving <span class="s">Investments, sales and other spending, also shown on the Spending page</span></h2>
   <div class="card"><table>
-    <tr><th>Date</th><th>To</th><th>Remarks</th><th class="r">Amount</th><th></th></tr>
-    ${list.map(t => `<tr><td>${fmtDate(t.date)}</td><td><span class="cchip ${t.type === 'expense' ? '' : 'logochip'}">${t.type === 'gold' ? '<img src="/static/logos/treasury.png" alt="Treasury">' : t.type === 'expense' ? catLabel(t.cat || 'Other') : '<img src="/static/logos/stockbit.svg" alt="Stockbit">'}</span></td><td>${esc(t.note || '—')}</td><td class="r neg"><b>−${rp(t.amount)}</b></td>
+    <tr><th>Date</th><th>Account</th><th>Remarks</th><th class="r">Amount</th><th></th></tr>
+    ${list.map(t => `<tr><td>${fmtDate(t.date)}</td><td><span class="cchip ${t.type === 'expense' ? '' : 'logochip'}">${t.type === 'gold' ? '<img src="/static/logos/treasury.png" alt="Treasury">' : t.type === 'expense' ? catLabel(t.cat || 'Other') : '<img src="/static/logos/stockbit.svg" alt="Stockbit">'}</span></td><td>${esc(t.note || '—')}</td><td class="r ${t.back ? 'pos' : 'neg'}"><b>${t.back ? '+' : '−'}${rp(t.amount)}</b></td>
       <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delTransfer('${t.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
-    ${list.length ? '' : '<tr><td colspan="5" class="s" style="text-align:center;padding:22px">Nothing moved yet. Top up your stocks or buy gold and it will show here.</td></tr>'}
+    ${list.length ? '' : '<tr><td colspan="5" class="s" style="text-align:center;padding:22px">Nothing moved yet. Top up your stocks, buy or sell gold, and it will show here.</td></tr>'}
   </table></div>`;
 }
 
@@ -598,10 +679,14 @@ async function topUp(ev) {
   S.wealth.stocks.cash += amt; commit();
 }
 async function delTransfer(id) {
-  const t = S.wealth.transfers.find(x => x.id === id); if (!t || !(await ask({title: 'Delete this transfer?', text: 'The money goes back to your cash saving.', ok: 'Delete', danger: true}))) return;
+  const t = S.wealth.transfers.find(x => x.id === id); if (!t || !(await ask({title: 'Delete this transfer?', text: t.back ? 'The money leaves your cash saving again' + (t.type === 'gold' ? ' and the gold comes back.' : ' and goes back to your trading balance.') : 'The money goes back to your cash saving.', ok: 'Delete', danger: true}))) return;
   S.wealth.transfers = S.wealth.transfers.filter(x => x.id !== id);
-  if (t.type === 'stockbit') S.wealth.stocks.cash -= t.amount;
-  if (t.type === 'gold') S.wealth.gold.items = S.wealth.gold.items.filter(x => x.id !== t.goldId);
+  if (t.type === 'stockbit') S.wealth.stocks.cash += t.back ? t.amount : -t.amount;
+  if (t.type === 'gold' && !t.back) S.wealth.gold.items = S.wealth.gold.items.filter(x => x.id !== t.goldId);
+  if (t.type === 'gold' && t.back) (t.cut || []).forEach(c => {   // undo a gold sale: put the grams and their cost back
+    const it = S.wealth.gold.items.find(x => x.id === c.id);
+    if (it) { it.grams += c.grams; it.paid += c.paid; } else S.wealth.gold.items.push({id: c.id, date: c.date, grams: c.grams, paid: c.paid, note: c.note || ''});
+  });
   commit();
 }
 async function addGold(ev) {
@@ -630,6 +715,55 @@ async function addHolding(ev) {
   }
   S.wealth.stocks.holdings.push({ticker: t, lots, invested: inv}); persist(); render(); loadQuotes();
 }
+// the "Amount received" box follows the estimate until the user types their own number
+function sellEst(f, e) {
+  if (e.target.name === 'amt') { if (e.type === 'input') f.amt.dataset.touched = '1'; return; }
+  if (f.amt.dataset.touched === '1') return;
+  let est = 0;
+  if (f.dataset.kind === 'gold') est = Math.round((Number(f.grams.value) || 0) * (goldCalc().price || 0));
+  else { const r = stockCalc().rows[Number(f.pick.value)]; est = r && r.price != null ? Math.round((Number(f.lots.value) || 0) * 100 * r.price) : 0; }
+  f.amt.value = est ? fm(est) : '';
+}
+async function sellStock(ev) {
+  ev.preventDefault(); const f = ev.target, i = Number(f.pick.value), lots = Number(f.lots.value), amt = num(f.amt.value), date = f.date.value, h = S.wealth.stocks.holdings[i];
+  if (!h || !lots || !amt) return;
+  if (lots > h.lots) { await notify({title: 'Not enough lots', text: `You hold ${h.lots} ${h.lots === 1 ? 'lot' : 'lots'} of ${h.ticker}.`, ok: 'OK'}); return; }
+  if (!(await ask({title: `Sell ${lots} ${lots === 1 ? 'lot' : 'lots'} of ${h.ticker}?`, text: `${rp(amt)} goes to your trading balance.`, ok: 'Sell'}))) return;
+  const cost = lots === h.lots ? h.invested : Math.round(h.invested * lots / h.lots);   // the sold lots take their share of the invested amount
+  const ticker = h.ticker;
+  h.invested -= cost; h.lots -= lots;
+  if (h.lots <= 0) S.wealth.stocks.holdings.splice(i, 1);
+  S.wealth.stocks.cash += amt;
+  (S.wealth.stocks.sales = S.wealth.stocks.sales || []).push({id: uid(), date, ticker, lots, proceeds: amt, cost}); commit();
+}
+async function delStockSale(id) {
+  const st = S.wealth.stocks, x = (st.sales || []).find(v => v.id === id); if (!x) return;
+  if (x.proceeds > st.cash) { await notify({title: 'Trading balance too low', text: 'Part of this money has already left your trading balance. Delete the withdrawal first.', ok: 'OK'}); return; }
+  if (!(await ask({title: 'Delete this sale?', text: `${x.lots} ${x.lots === 1 ? 'lot' : 'lots'} of ${x.ticker} come back to your holdings and ${rp(x.proceeds)} leaves your trading balance.`, ok: 'Delete', danger: true}))) return;
+  const h = st.holdings.find(v => v.ticker === x.ticker);
+  if (h) { h.lots += x.lots; h.invested += x.cost; } else st.holdings.push({ticker: x.ticker, lots: x.lots, invested: x.cost});
+  st.cash -= x.proceeds; st.sales = st.sales.filter(v => v.id !== id); commit(); loadQuotes();
+}
+async function withdrawStock(ev) {
+  ev.preventDefault(); const f = ev.target, amt = num(f.amt.value), date = f.date.value, note = f.note.value.trim(); if (!amt) return;
+  if (amt > S.wealth.stocks.cash) { await notify({title: 'Trading balance too low', text: 'Your trading balance is lower than this amount.', ok: 'OK'}); return; }
+  S.wealth.stocks.cash -= amt;
+  S.wealth.transfers.push({id: uid(), date, type: 'stockbit', back: true, cat: 'Investment', amount: amt, note}); commit();
+}
+async function sellGold(ev) {
+  ev.preventDefault(); const f = ev.target, grams = Number(f.grams.value), amt = num(f.amt.value), date = f.date.value, note = f.note.value.trim(); if (!grams || !amt) return;
+  const items = S.wealth.gold.items, have = items.reduce((a, x) => a + x.grams, 0);
+  if (grams > have + 1e-9) { await notify({title: 'Not enough gold', text: `You hold ${have.toLocaleString('en-US', {maximumFractionDigits: 6})} g.`, ok: 'OK'}); return; }
+  if (!(await ask({title: `Sell ${grams.toLocaleString('en-US', {maximumFractionDigits: 6})} g of gold?`, text: `${rp(amt)} goes to your cash saving.`, ok: 'Sell'}))) return;
+  let left = grams; const cut = [];
+  [...items].sort((a, b) => a.date.localeCompare(b.date)).forEach(it => {   // oldest purchase first; each sold part takes its share of what was paid
+    if (left <= 1e-9) return;
+    const take = Math.min(it.grams, left), paid = take >= it.grams ? it.paid : Math.round(it.paid * take / it.grams);
+    cut.push({id: it.id, date: it.date, note: it.note, grams: take, paid}); it.grams -= take; it.paid -= paid; left -= take;
+  });
+  S.wealth.gold.items = items.filter(x => x.grams > 1e-9);
+  S.wealth.transfers.push({id: uid(), date, type: 'gold', back: true, cat: 'Investment', amount: amt, note, grams, cut}); commit();
+}
 function editHolding(i, f, v) { S.wealth.stocks.holdings[i][f] = f === 'lots' ? (Number(v) || 0) : num(v); commit(); }
 async function delHolding(i) { if (await ask({title: 'Delete this holding?', ok: 'Delete', danger: true})) { S.wealth.stocks.holdings.splice(i, 1); commit(); } }
 function setCash(v) { S.wealth.stocks.cash = num(v); commit(); }
@@ -643,8 +777,10 @@ function savingsPanel(k) {
       <div style="margin-top:16px;background:rgba(255,255,255,.4);border-radius:14px;padding:6px 16px">
         <div class="kv"><span>Previous savings</span><span>${rp(k.prev)}</span></div>
         <div class="kv"><span>${pc2(k.c.savePct)} of ${k.c.label} salary</span><span>${inflow(k.save)}</span></div>
-        <div class="kv"><span>Leftovers</span><span>${inflow(k.moved)}</span></div>
+        <div class="kv"><span>Leftovers moved in</span><span>${inflow(k.moved)}</span></div>
         <div class="kv"><span>Moved to investments</span><span>${outflow(k.transferred)}</span></div>
+        <div class="kv"><span>Moved from investments</span><span>${inflow(k.returned)}</span></div>
+        <div class="kv"><span>Other spending</span><span>${outflow(k.other)}</span></div>
         <div class="kv total"><span>Total</span><span>${rp(k.total)}</span></div>
       </div></div>
     <div class="card"><div class="t" style="font-size:18px;font-weight:900;margin-bottom:8px">Leftovers moved in this cycle</div>
@@ -653,8 +789,8 @@ function savingsPanel(k) {
   </div>
   <h2>History</h2>
   <div class="card"><table>
-    <tr><th>Cycle</th><th class="r">Previous</th><th class="r">Saved from salary</th><th class="r">Leftovers</th><th class="r">Moved to investments</th><th class="r">Total</th></tr>
-    ${all.filter(x => !x.untracked).map(x => `<tr class="${x.c.id === S.activeId ? 'cur' : ''}"><td><b>${x.c.label}</b></td><td class="r">${rp(x.prev)}</td><td class="r">${inflow(x.save)} <span class="s">(${pc2(x.c.savePct)})</span></td><td class="r">${inflow(x.moved)}</td><td class="r">${outflow(x.transferred)}</td><td class="r"><b>${rp(x.total)}</b></td></tr>`).join('')}
+    <tr><th>Cycle</th><th class="r">Previous</th><th class="r">Saved from salary</th><th class="r">Leftovers moved in</th><th class="r">Moved to investments</th><th class="r">Moved from investments</th><th class="r">Other spending</th><th class="r">Total</th></tr>
+    ${all.filter(x => !x.untracked).map(x => `<tr class="${x.c.id === S.activeId ? 'cur' : ''}"><td><b>${x.c.label}</b></td><td class="r">${rp(x.prev)}</td><td class="r">${inflow(x.save)} <span class="s">(${pc2(x.c.savePct)})</span></td><td class="r">${inflow(x.moved)}</td><td class="r">${outflow(x.transferred)}</td><td class="r">${inflow(x.returned)}</td><td class="r">${outflow(x.other)}</td><td class="r"><b>${rp(x.total)}</b></td></tr>`).join('')}
   </table></div>`;
 }
 
@@ -708,7 +844,7 @@ function spend(k) {
     const b = c.env[key];
     return `<button class="tab ${key === spendTab ? 'on' : ''}" style="--tc:${BANK[TAB_WALLET[key]]}" onclick="setSpendTab('${key}')"><span class="ic" style="color:var(--tc)">${icon(b.icon, 'filled', 16)}</span> ${b.name}<span>${rp(left(b))} available</span></button>`; }).join('')}</div>
 
-  ${spendTab === 'cash' ? cashPanel(k) : `<div class="card" style="border-top-left-radius:0">
+  ${spendTab === 'cash' ? cashPanel(k) : `<div class="card">
     <div class="grid g4" style="margin-bottom:14px;gap:14px">
       ${mini(w === 'gopay' ? 'gopay' : 'jago', logo(w), e.name, rp(e.amount + (e.carry || 0)), e.carry ? 'Includes ' + rp(e.carry) + ' carried over' : '')}
       ${mini('plain', miniTile('receipt', 'red'), 'Spent', rp(sp), '', false, 'neg')}
@@ -744,22 +880,22 @@ function spend(k) {
   </div>`}`;
 }
 
-// money that leaves the cash saving: Stockbit top-ups, gold purchases and other spending
+// money that moves in or out of the cash saving: stock top-ups, gold purchases, sales that come back, and other spending
 function cashPanel(k) {
   const c = k.c, all = S.wealth.transfers;
   const rows = all.map((t, i) => ({t, i})).filter(r => cycleOfDate(r.t.date) === c).sort((a, b) => b.t.date.localeCompare(a.t.date) || b.i - a.i);
   const sum = f => rows.filter(r => f(r.t)).reduce((a, r) => a + r.t.amount, 0);
-  const invested = sum(t => t.type !== 'expense'), other = sum(t => t.type === 'expense');
+  const invested = sum(t => !t.back && t.type !== 'expense'), other = sum(t => !t.back && t.type === 'expense'), returned = sum(t => t.back);
   const catOf = t => t.type === 'expense' ? (t.cat || 'Other') : 'Investment';
   const stat = (label, val, cls = '', sub = '') => `<div class="stat"><div class="s">${label}</div><b class="${cls}">${val}</b>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
-  return `<div class="card" style="border-top-left-radius:0">
+  return `<div class="card">
     <div class="grid g4" style="margin-bottom:14px;gap:14px">
       ${mini('jago', logo('jago'), 'Cash saving', rp(k.total))}
       ${mini('plain', miniTile('savings', 'green'), 'Added this cycle', rp(k.save + k.moved), pc2(k.c.savePct) + ' of salary + leftovers', false, 'pos')}
-      ${mini('plain', miniTile('trending', 'navy'), 'Invested this cycle', rp(invested), 'Stocks and gold', false, invested ? 'neg' : '')}
+      ${mini('plain', miniTile('trending', 'navy'), 'Invested this cycle', rp(invested), returned ? `${rp(returned)} moved back from sales` : 'Stocks and gold', false, invested ? 'neg' : '')}
       ${mini('plain', miniTile('receipt', 'red'), 'Other spending', rp(other), '', false, other ? 'neg' : '')}
     </div>
-    <div class="s" style="margin-bottom:10px">Everything here comes out of your cash saving. The Investment category is a stock top-up, and it also shows on the Wealth page. Gold purchases are added in the Gold tab of the Wealth page and appear here too.</div>
+    <div class="s" style="margin-bottom:10px">Everything here moves in or out of your cash saving. The Investment category is a stock top-up, and it also shows on the Wealth page. Gold purchases, gold sales and stock withdrawals are added in the Wealth page and appear here too.</div>
     <form id="cadd" onsubmit="addCash(event)"></form><form id="cef" onsubmit="saveCash(event)"></form>
     <table class="crud">
       <tr><th style="width:150px">Date</th><th style="width:190px">Category</th><th>Remarks</th><th class="r" style="width:150px">Amount</th><th style="width:140px"></th></tr>
@@ -777,10 +913,10 @@ function cashPanel(k) {
         <td><input form="cef" name="amt" class="money" inputmode="numeric" autocomplete="off" value="${fm(t.amount)}" required style="text-align:right"></td>
         <td class="r"><button form="cef" class="ib edit" data-tip="Save" aria-label="Save">${icon('save', 'regular', 18)}</button><button type="button" class="ib del" data-tip="Cancel" aria-label="Cancel" onclick="editing=null;render()">${icon('dismiss', 'regular', 18)}</button></td></tr>` : `
       <tr><td>${fmtDate(t.date)}</td><td><span class="cchip">${catLabel(catOf(t))}</span></td>
-        <td>${t.note ? esc(t.note) + ' ' : t.type === 'expense' ? '—' : ''}${t.type === 'stockbit' ? '<span class="s">Stock top-up</span>' : t.type === 'gold' ? '<span class="s">Gold purchase</span>' : ''}</td>
-        <td class="r neg"><b>−${rp(t.amount)}</b></td>
-        <td class="r">${t.type === 'gold' ? '' : `<button class="ib edit" data-tip="Edit" aria-label="Edit" onclick="editing={key:'cash',id:'${t.id}'};render()">${icon('edit', 'regular', 18)}</button>`}<button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delTransfer('${t.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
-      ${rows.length ? '' : '<tr><td colspan="5" class="s" style="text-align:center;padding:22px">Nothing has left your cash saving in this cycle.</td></tr>'}
+        <td>${t.note ? esc(t.note) + ' ' : t.type === 'expense' ? '—' : ''}${t.type === 'stockbit' ? `<span class="s">${t.back ? 'Stock withdrawal' : 'Stock top-up'}</span>` : t.type === 'gold' ? `<span class="s">${t.back ? 'Gold sale' : 'Gold purchase'}</span>` : ''}</td>
+        <td class="r ${t.back ? 'pos' : 'neg'}"><b>${t.back ? '+' : '−'}${rp(t.amount)}</b></td>
+        <td class="r">${t.type === 'gold' || t.back ? '' : `<button class="ib edit" data-tip="Edit" aria-label="Edit" onclick="editing={key:'cash',id:'${t.id}'};render()">${icon('edit', 'regular', 18)}</button>`}<button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delTransfer('${t.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
+      ${rows.length ? '' : '<tr><td colspan="5" class="s" style="text-align:center;padding:22px">Nothing has moved in or out of your cash saving in this cycle.</td></tr>'}
     </table>
   </div>`;
 }

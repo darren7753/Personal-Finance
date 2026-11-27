@@ -14,3 +14,4 @@ Thumbs.db
 # salary slips and other personal documents must never be committed
 *.pdf
 SlipGaji*
+!static/demo-salary-slip.pdf
