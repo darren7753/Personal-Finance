@@ -1,4 +1,4 @@
-# Darren's Finance
+# darren's finance
 
 A personal finance tracker that I built for myself, and for my partner, to see where our money goes each month and how our wealth is growing.
 
@@ -18,11 +18,13 @@ So I made a small website that follows exactly those rules.
 ## What it does
 
 - **Dashboard:** a flow diagram that shows how one salary branches into savings, fixed expenses and budgets, and what is left in each, plus spending charts (a donut by category and a daily trend).
-- **Wealth:** cash saving, stocks (Stockbit) and gold (Treasury) in one place, with live prices, profit or loss, and buying and selling that moves money to and from cash saving.
+- **Wealth:** cash saving, stocks (Stockbit) and gold (Treasury) in one place, with live prices, profit or loss, and buying and selling that moves money to and from cash saving. The stock maths copies Stockbit's own, so my numbers match the app.
 - **Spending:** every expense by budget, with a daily cap that turns each day green or red.
 - **Pay cycles:** start a new cycle every payday. Past cycles stay saved and can be opened any time.
+- **Copy as image:** one button copies the Dashboard diagram as a picture, ready to paste into a chat.
 - **Privacy eye:** one button that hides every number on screen, like in a banking app.
-- **Telegram bot:** I can add, view, edit and delete spending from my phone without opening the site (see below).
+- **Telegram bot:** I can add, view, edit and delete spending, and ask for a picture of my finance summary, from my phone (see below).
+- **Remembers my place:** a refresh keeps the same page, tab and scroll position.
 - **Works on phones, tablets and laptops.**
 - **Guest demo:** a visitor gets randomly generated data and simulated prices. Nothing is saved, and the server refuses to hand guests any real data.
 
@@ -46,28 +48,33 @@ flowchart LR
         D2[("quotes<br/>price cache")]
         D3[("bot_pending<br/>unfinished bot chats")]
         D4[("slips<br/>salary slips")]
+        D5[("snapshot<br/>picture of the Dashboard")]
     end
 
-    Y["Yahoo Finance"]
+    Y["Yahoo Finance<br/>stock prices"]
+    TR["Treasury website<br/>gold prices"]
     TG["Telegram servers"]
     G["GitHub<br/>public repo"]
 
     B -- "HTTPS, signed-in session" --> F
+    B -- "live gold feed, WebSocket" --> TR
     T --> TG
     TG -- "webhook" --> F
     F --> D1
     F --> D2
     F --> D3
     F --> D4
+    F --> D5
     F -- "yfinance" --> Y
+    F -- "gold price history" --> TR
     G -- "push to main deploys automatically" --> F
 
     classDef app fill:#fff4e0,stroke:#e08a00,color:#222
     classDef data fill:#e6f0ff,stroke:#0060af,color:#222
     classDef ext fill:#f1f1f1,stroke:#777,color:#222
     class B,T,F app
-    class D1,D2,D3,D4 data
-    class Y,TG,G ext
+    class D1,D2,D3,D4,D5 data
+    class Y,TR,TG,G ext
 ```
 
 The same code also runs on my laptop. Without `DATABASE_URL` it keeps everything in local JSON files, needs no login, and works as a sandbox.
@@ -159,56 +166,94 @@ sequenceDiagram
     S-->>A: data, revision 6
 ```
 
-## Live prices from Yahoo Finance
+## Live prices for stocks and gold
 
-Stocks and gold are tracked live with no paid data source. Stockbit has no public API, so I type in my lots once, and the site prices them with Yahoo Finance. Treasury (gold) has no Yahoo price for Indonesia either, so the site works out the price per gram from the world gold price and the dollar exchange rate.
+Stocks and gold are tracked live with no paid data source. Neither Stockbit nor Treasury has a public API for my account, so I type in my lots and purchases once. The site then prices them with live market data, and it never touches my real accounts.
+
+### Stocks: Yahoo Finance
 
 ```mermaid
 flowchart LR
     subgraph browser["Browser"]
         POLL["Price timer<br/>every 15 s while the market is open<br/>every 2 min when closed<br/>paused when the tab is hidden"]
         STK["Stocks value<br/>lots × 100 shares × price"]
-        GLD["Gold price per gram<br/>GC=F × USDIDR ÷ 31.1035 × 0.998"]
     end
 
     subgraph server["Flask on Vercel"]
         CHK{"Saved in the quotes table<br/>less than 10 s ago?"}
         YF["yfinance"]
-        SAVE["Save price in quotes table"]
+        SAVE["Save price and trade time<br/>in the quotes table"]
         OLD["Use the last saved price<br/>marked as stale"]
     end
 
     YAHOO["Yahoo Finance"]
 
-    POLL -- "GET /api/quotes<br/>TICKER.JK, GC=F, USDIDR=X" --> CHK
+    POLL -- "GET /api/quotes<br/>TICKER.JK" --> CHK
     CHK -- "yes" --> OUT["Prices sent back"]
     CHK -- "no" --> YF
     YF <--> YAHOO
     YF -- "got a price" --> SAVE --> OUT
     YF -- "Yahoo failed" --> OLD --> OUT
     OUT --> STK
-    OUT --> GLD
 
     classDef app fill:#fff4e0,stroke:#e08a00,color:#222
     classDef ext fill:#f1f1f1,stroke:#777,color:#222
     classDef calc fill:#e3f6e8,stroke:#2e9d4f,color:#222
     class POLL,CHK,YF,SAVE,OLD,OUT app
     class YAHOO ext
-    class STK,GLD calc
+    class STK calc
 ```
 
-- **Stocks:** Indonesian stocks use the `.JK` ending on Yahoo. Prices are delayed by about 10 minutes, and the site only polls quickly during trading hours (Monday to Friday, 09:00 to 16:00 Jakarta time).
-- **Gold:** `GC=F` is gold futures in US dollars per troy ounce. One troy ounce is 31.1035 grams. I multiply by `USDIDR=X` to get rupiah per gram, then by 0.998, a factor I calibrated against what the Treasury app actually showed, because it matched within 0.03%.
+- **Prices:** Indonesian stocks use the `.JK` ending on Yahoo. They are delayed by about 10 minutes, and the site only polls quickly during trading hours (Monday to Friday, 09:00 to 16:00 Jakarta time). The header shows both when the price was traded ("price from") and when the site last checked ("updated").
 - **Cache:** the `quotes` table means many page loads share one Yahoo request, which keeps the site fast and polite to Yahoo.
 - **Fallback:** if Yahoo is down or blocks the request, the last saved price is shown and marked as stale instead of an error.
-- **Demo:** guests get simulated prices made in the browser, and never call Yahoo.
+- **Stockbit's maths:** I worked out how Stockbit calculates things and copied it exactly. A buy costs shares × price × 1.0015 (the fee), the average price is kept to 4 decimals, and a sell leaves the average unchanged. Stockbit keeps the decimals inside and cuts them off on screen, never rounds, so the site does the same. After the market closed, every number on my Stocks tab matched the app.
+- **Selling:** an **Auto** and **Manual** switch. Auto works out the amount received from the lots and the live price after the 0.25% sell fee. Manual lets me type the exact amount.
+
+### Gold: Treasury
+
+Yahoo has no Indonesian gold price, and a rough estimate from world gold futures was off by about 1%. So the site now uses Treasury's own price per gram, the same data its website shows. It tries four sources, newest first, and always says which one is in use.
+
+```mermaid
+flowchart TD
+    subgraph treasury["Treasury website data"]
+        WS["Live feed<br/>WebSocket, a new price every minute"]
+        REST["Price history API<br/>a new point every 5 minutes"]
+    end
+
+    BR["Browser listens to the live feed<br/>and reconnects if it drops"]
+    FL["Flask asks the history API<br/>browser checks every 15 s"]
+    YE["Yahoo estimate<br/>GC=F × USDIDR ÷ 31.1035 × 0.998"]
+    SV["Last saved price"]
+    PRICE{{"Gold price per gram<br/>buy and sell<br/>the newest price wins"}}
+
+    WS --> BR --> PRICE
+    REST --> FL --> PRICE
+    YE -. "only if Treasury fails" .-> PRICE
+    SV -. "only if nothing loads" .-> PRICE
+    PRICE --> VAL["Gold value and profit<br/>shown with the time of the price"]
+
+    classDef app fill:#fff4e0,stroke:#e08a00,color:#222
+    classDef ext fill:#f1f1f1,stroke:#777,color:#222
+    classDef calc fill:#e3f6e8,stroke:#2e9d4f,color:#222
+    class BR,FL,YE,SV app
+    class WS,REST ext
+    class PRICE,VAL calc
+```
+
+- **Why the browser listens to the live feed:** a serverless function on Vercel cannot keep a WebSocket open, so the browser connects directly. The server only handles the slower history API.
+- **Buying:** I enter the amount paid and the buy price per gram, and the site works out the grams (rounded down to 6 decimals, like the app).
+- **Yahoo fallback:** `GC=F` is gold futures in US dollars per troy ounce, and one troy ounce is 31.1035 grams. I multiply by `USDIDR=X` to get rupiah per gram, then by 0.998, a factor I calibrated against the Treasury app.
+- **Demo:** guests get simulated prices made in the browser, and never call Yahoo or Treasury.
+- **Unofficial data:** these are not published developer APIs. If either source changes, the site drops to the next one, and the label under the price says so.
 
 ## Telegram bot
 
 Opening a website every time I buy a coffee is too much effort, so I added a private Telegram bot. It works on the **daily, date and free spending** budgets, and it uses the same data and rules as the site.
 
 - **Quick add:** send a message that starts with the amount, such as `25000 lunch`, `25k coffee` or `1.5jt rent`. The bot then asks for the budget, the category and the date with buttons. The `k`, `rb` and `jt` suffixes mean thousand, thousand and million.
-- **Guided add:** `/menu` shows **Add spending** and **View, edit or delete**.
+- **Guided add:** `/menu` shows **Add spending**, **View, edit or delete** and **Finance summary**.
+- **Finance summary:** the bot sends me a picture of my Dashboard diagram with the time it was taken, plus a **Full size file** button because Telegram shrinks photos (see the last diagram below).
 - **View, edit and delete:** the daily budget is listed day by day with its total and whether it is under, near or over the daily cap. The date and free budgets are listed newest first. Delete always asks first.
 - **Private:** only the Telegram IDs on my allow-list get an answer, and Telegram's webhook secret is checked on every request.
 - **Shared categories:** the website and the bot read the same list, `static/categories.json`.
@@ -266,6 +311,30 @@ flowchart TD
     class SAVED done
 ```
 
+### How the finance summary picture gets to Telegram
+
+The diagram depends on live prices that only the browser has, so the browser draws the picture and the bot only passes it on. That means the picture is only as new as the last time the website was open, which is why the caption shows when it was taken.
+
+```mermaid
+sequenceDiagram
+    participant B as Browser, site open
+    participant S as Server
+    participant DB as Supabase snapshot table
+    participant TG as Telegram bot
+    actor Me
+
+    B->>B: Draw the Dashboard diagram as a PNG
+    B->>S: Upload the picture, only if it changed
+    S->>DB: Keep one picture with its time and data revision
+    Me->>TG: Finance summary
+    TG->>DB: Read the picture
+    TG-->>Me: Photo with the time it was taken
+    Note over B,DB: A picture from an older tab never replaces a newer one
+    Note over TG,Me: If the data changed since, the caption says to open the website
+```
+
+The same drawing powers the **Copy as image** button on the website. When the privacy eye is on, the copied picture has dots instead of numbers. The picture for the bot always has the real numbers, and only the people on the allow-list can ask for it.
+
 The bot runs as a webhook on the same Vercel deployment (`/telegram/webhook`, code in `telegram_bot.py`). It shares the data, the rules and the category list with the website, and Vercel runs in Singapore, next to the database, to keep every tap fast. To try it locally without a webhook, run `tools/telegram_poll.py`.
 
 ## How it is built
@@ -275,7 +344,9 @@ The bot runs as a webhook on the same Vercel deployment (`/telegram/webhook`, co
 | Backend | Python and Flask |
 | Frontend | Plain HTML, CSS and JavaScript (no framework, no build step) |
 | Design | A "liquid glass" look with bank brand colors and Fluent UI System Icons |
-| Prices | Yahoo Finance through `yfinance` (stocks, gold futures and USD/IDR) |
+| Stock prices | Yahoo Finance through `yfinance` |
+| Gold prices | Treasury's live feed (WebSocket) and price history, with a Yahoo estimate as a backup |
+| Charts and pictures | Chart.js for the charts, html-to-image for the diagram picture |
 | Database | Supabase Postgres on the live site, a local JSON file when running on my laptop |
 | Login | Google sign-in with an allow-list, plus a password as a backup |
 | Bot | Telegram Bot API through a webhook |
@@ -314,6 +385,8 @@ app.py              Flask app: pages, API, login, price cache, bot webhook
 telegram_bot.py     The Telegram bot
 templates/          Login page and the app shell
 static/js/app.js    All app logic and views
+static/js/charts.js The two Dashboard charts
+static/js/snapshot.js  Copy as image, and the picture the bot sends
 static/js/demo.js   Random demo data and simulated prices
 static/css/         The whole theme, including every responsive rule
 static/categories.json  The category list shared by the site and the bot
@@ -333,6 +406,7 @@ The code is released under the [MIT License](LICENSE). The license covers my cod
 - Icons: [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) by Microsoft (MIT license, see `static/icons/`).
 - Charts use [Chart.js](https://www.chartjs.org/) (MIT license), included in `static/vendor/`.
 - Bank and wallet logos for BCA, Jago and GoPay come from [hafidznoor/idn-finlogos](https://github.com/hafidznoor/idn-finlogos) (CC BY-NC 4.0, personal use). The Stockbit and Treasury logos belong to their owners. All brand names and logos are trademarks of their respective companies, and I am not affiliated with any of them.
+- The diagram picture uses [html-to-image](https://github.com/bubkoo/html-to-image) (MIT license), included in `static/vendor/`.
 - Font: [Nunito](https://fonts.google.com/specimen/Nunito) from Google Fonts.
 
-This is a personal project and not financial advice. Prices from Yahoo Finance are unofficial and delayed.
+This is a personal project and not financial advice. Prices from Yahoo Finance and Treasury come from unofficial sources, and stock prices are delayed.
