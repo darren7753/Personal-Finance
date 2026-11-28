@@ -140,6 +140,7 @@ function render() {
   const top = document.querySelector('.top'); top.classList.remove('enter-top'); if (entering) { void top.offsetWidth; top.classList.add('enter-top'); }
   if (swapping) { const p = v.querySelector('.tabs + *'); if (p) p.classList.add('swap'); }
   decorate(entering);
+  viewSave();
 }
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1223,8 +1224,27 @@ document.querySelectorAll('.side-foot').forEach(f => f.addEventListener('submit'
   e.preventDefault();
   const yes = await ask(GUEST ? {title: 'Exit the demo?', text: 'The random demo data will be gone.', ok: 'Exit demo', danger: true, icon: 'signout'}
                               : {title: 'Log out?', text: 'You will need to sign in again.', ok: 'Log out', danger: true, icon: 'signout'});
-  if (yes) { CHART_KEYS.forEach(k => localStorage.removeItem(k)); f.submit(); }   // the remembered chart choices end with the session; submit() does not fire this handler again
+  if (yes) { CHART_KEYS.forEach(k => localStorage.removeItem(k)); viewForget(); f.submit(); }   // the remembered chart choices and page position end with the session; submit() does not fire this handler again
 }));
+// ---------- a refresh keeps the page, tab and scroll position; logging out (or exiting the demo) forgets them ----------
+// Kept in sessionStorage: it survives a refresh but not a closed tab, and viewForget() clears it on log out.
+const VIEW_KEY = 'dfView', VIEW_TABS = {tab: ['dash', 'wealth', 'spend', 'cycles'], spendTab: ['daily', 'date', 'free', 'cash'], wealthTab: ['savings', 'stocks', 'gold']};
+let viewReady = false, viewWant = 0;   // saving starts only after the saved position is restored, so the page's first (short) layout never overwrites it
+history.scrollRestoration = 'manual';
+function viewSave() { if (viewReady) try { sessionStorage.setItem(VIEW_KEY, JSON.stringify({tab, spendTab, wealthTab, y: Math.round(scrollY)})); } catch (e) {} }
+function viewForget() { viewReady = false; try { sessionStorage.removeItem(VIEW_KEY); } catch (e) {} }
+function viewRestore() {   // before the first render: pick the saved page and tabs (anything unknown is ignored)
+  try {
+    const v = JSON.parse(sessionStorage.getItem(VIEW_KEY) || 'null'); if (!v) return;
+    if (VIEW_TABS.tab.includes(v.tab)) tab = v.tab;
+    if (VIEW_TABS.spendTab.includes(v.spendTab)) spendTab = v.spendTab;
+    if (VIEW_TABS.wealthTab.includes(v.wealthTab)) wealthTab = v.wealthTab;
+    viewWant = Number(v.y) > 0 ? Number(v.y) : 0;
+  } catch (e) {}
+}
+let viewTick = 0;
+addEventListener('scroll', () => { if (!viewTick) viewTick = requestAnimationFrame(() => { viewTick = 0; viewSave(); }); }, {passive: true});
+addEventListener('pagehide', viewSave);
 document.querySelectorAll('.logout').forEach(b => b.insertAdjacentHTML('afterbegin', `<span class="logic">${icon('signout', 'regular', 20)}</span>`));
 $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
 
@@ -1252,8 +1272,13 @@ $('#cycleSel').onchange = e => { S.activeId = e.target.value; commit(); };
   // prices get at most 4 seconds, then the page opens with the last known values
   await Promise.race([loadQuotes(), new Promise(r => setTimeout(r, 4000))]);
   if (dirty) persist();
+  viewRestore();
   render();
   document.documentElement.classList.remove('booting'); const bl = document.getElementById('boot'); if (bl) bl.remove();
+  // back to where the visitor was; the diagram refits itself right after the first render and can change the height, so try again once the layout has settled
+  const goBack = () => scrollTo({top: viewWant, left: 0, behavior: 'instant'});
+  goBack(); requestAnimationFrame(goBack);
+  setTimeout(() => { goBack(); viewReady = true; viewSave(); }, 500);
   schedulePoll(); scheduleGoldPoll(); connectGoldFeed();
   snapSchedule(8000);   // a fresh picture for the Telegram bot, a few seconds after the page is shown (only uploaded when the numbers changed)
 })();
