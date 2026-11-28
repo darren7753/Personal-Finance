@@ -11,6 +11,10 @@ const rp = n => (n < 0 ? '−' : '') + 'IDR ' + Math.abs(Math.round(n)).toLocale
 const pc2 = v => Number(v).toFixed(2).replace(/\.00$/, '') + '%';
 const fm = n => 'IDR ' + Math.round(n).toLocaleString('en-US');
 const num = v => Number(String(v).replace(/\D/g, '')) || 0;
+// Stockbit keeps decimals inside (invested = average price x shares) and CUTS them off on screen, never rounds. The Stocks part does the same.
+const rpT = n => (n < 0 ? '−' : '') + 'IDR ' + Math.trunc(Math.abs(n) + 1e-9).toLocaleString('en-US');
+const fmT = n => 'IDR ' + Math.trunc(Math.abs(n) + 1e-9).toLocaleString('en-US');
+const numDec = (v, d = 2) => { const f = 10 ** d; return Math.round((Number(String(v).replace(/[^\d.]/g, '')) || 0) * f) / f; };   // a number with up to d decimals (2 by default)
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDate = d => { const dt = new Date(d + 'T00:00'); return dt.toLocaleDateString('en-GB', {weekday: 'short'}) + ', ' + dt.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'}); };
@@ -593,12 +597,12 @@ function stockPanel(k) {
   return `
   <div class="note"><span class="ni">ⓘ</span><div>${GUEST ? 'These values are made up for this demo. Prices are simulated and change a little on every refresh.' : 'These values are estimates. Prices come from Yahoo Finance and are delayed by about 10 minutes, so the numbers can differ slightly from your Stockbit app. Check the Stockbit app for your exact figures.'}</div></div>
   <div class="grid g3" style="margin-bottom:14px">
-    <div class="stat"><div class="s">Trading balance</div><input class="money big" inputmode="numeric" autocomplete="off" value="${fm(sc.cash)}" onchange="setCash(this.value)"></div>
-    ${box('Invested', rp(sc.invested))}
-    ${box('Market value', rp(sc.value))}
-    ${box('P&L', (sc.pl > 0 ? '+' : '') + rp(sc.pl), plClass(sc.pl))}
+    <div class="stat"><div class="s">Trading balance</div><input class="money big" inputmode="numeric" autocomplete="off" value="${fmT(sc.cash)}" onchange="setCash(this.value)"></div>
+    ${box('Invested', rpT(sc.invested))}
+    ${box('Market value', rpT(sc.value))}
+    ${box('P&L', (sc.pl > 0 ? '+' : '') + rpT(sc.pl), plClass(sc.pl))}
     ${box('Return', signed(sc.ret), plClass(sc.ret), 'On invested + trading balance')}
-    ${box('Total equity', rp(sc.equity))}
+    ${box('Total equity', rpT(sc.equity))}
   </div>
   <div class="grid g3 actions" style="margin-bottom:14px">
     <div class="card">
@@ -636,19 +640,19 @@ function stockPanel(k) {
       <tr class="newrow">
         <td><input form="hadd" name="ticker" placeholder="e.g. BBCA" required style="text-transform:uppercase"></td>
         <td><input form="hadd" name="lots" type="number" min="1" placeholder="Lots" required style="text-align:right"></td>
-        <td><input form="hadd" name="inv" class="money" inputmode="numeric" autocomplete="off" placeholder="Invested" required style="text-align:right"></td>
+        <td><input form="hadd" name="price" class="money" data-dec="4" inputmode="decimal" autocomplete="off" placeholder="Buy price" required style="text-align:right"></td>
         <td colspan="6" class="s"><div class="row" style="gap:10px;align-items:center"><input form="hadd" type="checkbox" name="fund" id="fundchk" class="chk" checked>
-          <div><label for="fundchk" style="cursor:pointer">Pay from trading balance (untick to record a holding you already own)</label><div>1 lot = 100 shares. Invested = the total buy cost shown in Stockbit.</div></div></div></td>
+          <div><label for="fundchk" style="cursor:pointer">Pay from trading balance (untick to record a holding you already own)</label><div>1 lot = 100 shares. Buy price = the price per share. The 0.15% buy fee is added, and a stock you already hold is merged into its row. When unticked, the price is your average price and no fee is added.</div></div></div></td>
         <td class="r"><button form="hadd" class="cta inline" style="padding:9px 18px">+ Add</button></td></tr>
       ${sc.rows.map(r => `<tr>
         <td><b>${esc(r.h.ticker)}</b><div class="s">${Math.round(r.shares).toLocaleString('en-US')} shares</div></td>
         <td><input type="number" min="0" value="${r.h.lots}" onchange="editHolding(${r.i},'lots',this.value)" style="text-align:right"></td>
-        <td><input class="money" inputmode="numeric" autocomplete="off" value="${fm(r.h.invested)}" onchange="editHolding(${r.i},'invested',this.value)" style="text-align:right"></td>
+        <td><input class="money" data-dec="2" inputmode="decimal" autocomplete="off" value="${fmT(r.h.invested)}" title="Exact: ${(Math.round(r.h.invested * 100) / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (the screen cuts decimals off, like Stockbit)" onchange="editHolding(${r.i},'invested',this.value)" style="text-align:right"></td>
         <td class="r">${avgPrice(r.avg)}</td>
         <td class="r ${flash[r.h.ticker + '.JK'] ? 'flash-' + flash[r.h.ticker + '.JK'] : ''}">${r.price != null ? rp(r.price) : '—'}</td>
         <td class="r ${plClass(r.day || 0)}">${r.day != null ? signed(r.day) : '—'}</td>
-        <td class="r ${flash[r.h.ticker + '.JK'] ? 'flash-' + flash[r.h.ticker + '.JK'] : ''}"><b>${rp(r.value)}</b></td>
-        <td class="r ${plClass(r.pl)}"><b>${(r.pl > 0 ? '+' : '') + rp(r.pl)}</b></td>
+        <td class="r ${flash[r.h.ticker + '.JK'] ? 'flash-' + flash[r.h.ticker + '.JK'] : ''}"><b>${rpT(r.value)}</b></td>
+        <td class="r ${plClass(r.pl)}"><b>${(r.pl > 0 ? '+' : '') + rpT(r.pl)}</b></td>
         <td class="r ${plClass(r.ret)}"><b>${signed(r.ret)}</b></td>
         <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delHolding(${r.i})">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
     </table>
@@ -659,7 +663,7 @@ function stockPanel(k) {
     <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Sales</div><div class="s" style="margin-left:auto">Realized profit: <b class="${plClass(realized)}">${(realized > 0 ? '+' : '') + rp(realized)}</b></div></div>
     <table>
       <tr><th>Date</th><th>Stock</th><th class="r">Lots</th><th class="r">Received</th><th class="r">Cost</th><th class="r">Profit</th><th></th></tr>
-      ${sales.map(x => `<tr><td>${fmtDate(x.date)}</td><td><b>${esc(x.ticker)}</b></td><td class="r">${x.lots}</td><td class="r">${rp(x.proceeds)}</td><td class="r">${rp(x.cost)}</td><td class="r ${plClass(x.proceeds - x.cost)}"><b>${(x.proceeds - x.cost > 0 ? '+' : '') + rp(x.proceeds - x.cost)}</b></td>
+      ${sales.map(x => `<tr><td>${fmtDate(x.date)}</td><td><b>${esc(x.ticker)}</b></td><td class="r">${x.lots}</td><td class="r">${rp(x.proceeds)}</td><td class="r">${rpT(x.cost)}</td><td class="r ${plClass(x.proceeds - x.cost)}"><b>${(x.proceeds - x.cost > 0 ? '+' : '') + rpT(x.proceeds - x.cost)}</b></td>
         <td class="r"><button class="ib del" data-tip="Delete" aria-label="Delete" onclick="delStockSale('${x.id}')">${icon('trash', 'regular', 18)}</button></td></tr>`).join('')}
       ${sales.length ? '' : '<tr><td colspan="7" class="s" style="text-align:center;padding:22px">No sales yet. Sell a holding above and it will show here.</td></tr>'}
     </table></div>`;
@@ -777,13 +781,17 @@ async function delGold(id) {
 
 async function addHolding(ev) {
   ev.preventDefault(); const g = n => document.querySelector(`[form=hadd][name=${n}]`);
-  const t = g('ticker').value.trim().toUpperCase().replace(/\.JK$/, ''), lots = Number(g('lots').value), inv = num(g('inv').value);
-  if (!t || !lots) return;
-  if (g('fund').checked) {
-    if (inv > S.wealth.stocks.cash) { await notify({title: 'Trading balance too low', text: 'Your trading balance is lower than this purchase. Top up from cash saving first.'}); return; }
-    S.wealth.stocks.cash -= inv;
-  }
-  S.wealth.stocks.holdings.push({ticker: t, lots, invested: inv}); persist(); render(); loadQuotes();
+  const t = g('ticker').value.trim().toUpperCase().replace(/\.JK$/, ''), lots = Number(g('lots').value), price = numDec(g('price').value, 4), fund = g('fund').checked;
+  if (!t || !lots || !price) return;
+  // Stockbit's way: a buy costs shares x price x 1.0015 (0.15% fee, not rounded). The average price is (old invested + cost) / all shares, rounded to 4 decimals,
+  // and invested = average price x shares. A stock already held is merged into its row. Without the fee when recording a holding you already own.
+  const st = S.wealth.stocks, shares = lots * 100, cost = shares * price * (fund ? 1.0015 : 1), h = st.holdings.find(x => x.ticker === t);
+  if (fund && cost > st.cash) { await notify({title: 'Trading balance too low', text: 'Your trading balance is lower than this purchase. Top up from cash saving first.'}); return; }
+  if (fund) st.cash = Math.round((st.cash - cost) * 100) / 100;
+  const allShares = shares + (h ? h.lots * 100 : 0), avg = Math.round(((h ? h.invested : 0) + cost) / allShares * 1e4) / 1e4;
+  if (h) { h.lots += lots; h.invested = Math.round(avg * allShares * 100) / 100; }
+  else st.holdings.push({ticker: t, lots, invested: Math.round(avg * allShares * 100) / 100});
+  persist(); render(); loadQuotes();
 }
 // the "Amount received" box follows the estimate until the user types their own number
 function sellEst(f, e) {
@@ -799,9 +807,10 @@ async function sellStock(ev) {
   if (!h || !lots || !amt) return;
   if (lots > h.lots) { await notify({title: 'Not enough lots', text: `You hold ${h.lots} ${h.lots === 1 ? 'lot' : 'lots'} of ${h.ticker}.`, ok: 'OK'}); return; }
   if (!(await ask({title: `Sell ${lots} ${lots === 1 ? 'lot' : 'lots'} of ${h.ticker}?`, text: `${rp(amt)} goes to your trading balance.`, ok: 'Sell'}))) return;
-  const cost = lots === h.lots ? h.invested : Math.round(h.invested * lots / h.lots);   // the sold lots take their share of the invested amount
+  // like Stockbit, a sale leaves the average price unchanged: what stays is the average price x the remaining shares (2 decimals kept), the rest is the cost of the sold lots
+  const keep = lots === h.lots ? 0 : Math.round(h.invested * (h.lots - lots) / h.lots * 100) / 100, cost = Math.round((h.invested - keep) * 100) / 100;
   const ticker = h.ticker;
-  h.invested -= cost; h.lots -= lots;
+  h.invested = keep; h.lots -= lots;
   if (h.lots <= 0) S.wealth.stocks.holdings.splice(i, 1);
   S.wealth.stocks.cash += amt;
   (S.wealth.stocks.sales = S.wealth.stocks.sales || []).push({id: uid(), date, ticker, lots, proceeds: amt, cost}); commit();
@@ -834,7 +843,7 @@ async function sellGold(ev) {
   S.wealth.gold.items = items.filter(x => x.grams > 1e-9);
   S.wealth.transfers.push({id: uid(), date, type: 'gold', back: true, cat: 'Investment', amount: amt, note, grams, cut}); commit();
 }
-function editHolding(i, f, v) { S.wealth.stocks.holdings[i][f] = f === 'lots' ? (Number(v) || 0) : num(v); commit(); }
+function editHolding(i, f, v) { S.wealth.stocks.holdings[i][f] = f === 'lots' ? (Number(v) || 0) : numDec(v); commit(); }
 async function delHolding(i) { if (await ask({title: 'Delete this holding?', ok: 'Delete', danger: true})) { S.wealth.stocks.holdings.splice(i, 1); commit(); } }
 function setCash(v) { S.wealth.stocks.cash = num(v); commit(); }
 
@@ -1191,9 +1200,13 @@ async function resetAll() { if (await ask({title: 'Reset all data?', text: 'Ever
 
 document.addEventListener('input', ev => {
   const el = ev.target; if (!el.classList || !el.classList.contains('money')) return;
-  const before = el.value.slice(0, el.selectionStart).replace(/\D/g, '').length, d = el.value.replace(/\D/g, '');
-  el.value = d ? 'IDR ' + Number(d).toLocaleString('en-US') : '';
-  let n = 0, i = 0; for (; i < el.value.length && n < before; i++) if (/\d/.test(el.value[i])) n++;
+  const dec = Number(el.dataset.dec) || 0, sig = dec ? /[\d.]/ : /\d/;   // data-dec="2": also keep up to 2 decimals (the Invested boxes); "4" for the buy price
+  const before = [...el.value.slice(0, el.selectionStart)].filter(c => sig.test(c)).length;
+  let raw = [...el.value].filter(c => sig.test(c)).join('');
+  if (dec) { const [a, ...rest] = raw.split('.'); raw = rest.length ? a + '.' + rest.join('').slice(0, dec) : a; }
+  const [a, b] = raw.split('.');
+  el.value = raw ? 'IDR ' + (Number(a) || 0).toLocaleString('en-US') + (b !== undefined ? '.' + b : '') : '';
+  let n = 0, i = 0; for (; i < el.value.length && n < before; i++) if (sig.test(el.value[i])) n++;
   el.setSelectionRange(i, i);
 });
 // Re-render only when the WIDTH changes (rotation, window resize). On phones the on-screen keyboard and the collapsing address bar
