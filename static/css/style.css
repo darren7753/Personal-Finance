@@ -704,6 +704,7 @@ th,th.r{text-align:center}
 .seg button{border:0;background:none;font:inherit;font-weight:800;font-size:12px;padding:7px 12px;border-radius:12px;cursor:pointer;color:#4b5268;transition:color .15s,background .15s}
 .seg button:hover:not(.on){color:#e08a00;background:rgba(255,255,255,.5)}
 .seg button.on{background:linear-gradient(180deg,#ffd877,#ffb02b 55%,#f59a00);color:#3a2600;box-shadow:0 3px 8px rgba(245,154,0,.35),inset 0 1px 1px rgba(255,255,255,.6)}
+.seg.sm{padding:2px;border-radius:12px;gap:1px}.seg.sm button{font-size:11px;padding:4px 10px;border-radius:10px}   /* small version, for the title row of the sell cards */
 @media(max-width:700px){.chartfilter{width:100%}.dcanvas{width:210px;height:210px}.seg button{padding:7px 9px}}
 .charts>*,.chartcard,.tcanvas,.dcanvas{min-width:0}
 .tcanvas canvas{max-width:100%}

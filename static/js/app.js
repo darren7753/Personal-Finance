@@ -455,6 +455,10 @@ function envCard(c, key) {
 
 // ---------- wealth: savings + Stockbit (prices from Yahoo Finance) + gold ----------
 let wealthTab = 'savings', quotes = {}, quotesAt = 0;
+let sellAuto = localStorage.getItem('dfSellAuto') !== '0';   // Sell forms: Auto = type the lots (or grams) and the amount is worked out; Manual = type both
+function setSellAuto(on) { sellAuto = on; localStorage.setItem('dfSellAuto', on ? '1' : '0'); render(); }
+// a small Auto / Manual switch for the title row of a sell card; the explanation is a tooltip, and the negative margin keeps the row as high as the title text, so every card keeps the same height
+const sellToggle = hint => `<div class="seg sm" data-tip="${hint}" role="group" aria-label="Amount received" style="margin:-4px 0"><button type="button" class="${sellAuto ? 'on' : ''}" onclick="setSellAuto(true)">Auto</button><button type="button" class="${sellAuto ? '' : 'on'}" onclick="setSellAuto(false)">Manual</button></div>`;
 
 const flash = {};
 function marketOpen() {            // IDX trades Mon-Fri, roughly 09:00-16:00 WIB (UTC+7)
@@ -593,16 +597,18 @@ function setWealthTab(t) { wealthTab = t; render(); }
 function stockPanel(k) {
   const sc = stockCalc(), stale = Object.values(quotes).some(q => q.stale), noPrices = !Object.keys(quotes).length;
   const upd = quotesAt ? new Date(quotesAt).toLocaleTimeString('en-GB') : '';
+  const hm = ts => new Date(ts * 1000).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta'});
+  const asofs = sc.rows.map(r => (r.q || {}).asof).filter(Boolean), priceFrom = asofs.length ? ', price from ' + hm(Math.max(...asofs)) : '';   // the newest price time among your stocks
   const box = (label, val, cls = '', sub = '') => `<div class="stat"><div class="s">${label}</div><b class="${cls}">${val}</b>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
   return `
   <div class="note"><span class="ni">ⓘ</span><div>${GUEST ? 'These values are made up for this demo. Prices are simulated and change a little on every refresh.' : 'These values are estimates. Prices come from Yahoo Finance and are delayed by about 10 minutes, so the numbers can differ slightly from your Stockbit app. Check the Stockbit app for your exact figures.'}</div></div>
   <div class="grid g3" style="margin-bottom:14px">
-    <div class="stat"><div class="s">Trading balance</div><input class="money big" inputmode="numeric" autocomplete="off" value="${fmT(sc.cash)}" onchange="setCash(this.value)"></div>
-    ${box('Invested', rpT(sc.invested))}
-    ${box('Market value', rpT(sc.value))}
-    ${box('P&L', (sc.pl > 0 ? '+' : '') + rpT(sc.pl), plClass(sc.pl))}
-    ${box('Return', signed(sc.ret), plClass(sc.ret), 'On invested + trading balance')}
-    ${box('Total equity', rpT(sc.equity))}
+    <div class="stat"><div class="s">Trading balance</div><input class="money big" inputmode="numeric" autocomplete="off" value="${fmT(sc.cash)}" onchange="setCash(this.value)"><div class="s">Cash ready to buy stocks</div></div>
+    ${box('Invested', rpT(sc.invested), '', 'Total buy cost of your stocks')}
+    ${box('Market value', rpT(sc.value), '', 'Shares times last price')}
+    ${box('P&L', (sc.pl > 0 ? '+' : '') + rpT(sc.pl), plClass(sc.pl), 'Market value minus invested')}
+    ${box('Return', signed(sc.ret), plClass(sc.ret), 'On invested plus trading balance')}
+    ${box('Total equity', rpT(sc.equity), '', 'Trading balance plus market value')}
   </div>
   <div class="grid g3 actions" style="margin-bottom:14px">
     <div class="card">
@@ -614,12 +620,12 @@ function stockPanel(k) {
       </form>
     </div>
     <div class="card">
-      <div class="t" style="font-size:18px">Sell stocks</div>
-      <div class="s act-d">Sells lots of a holding. The money goes to your trading balance. The amount is filled in from the live price, so change it to match the real number in Stockbit.</div>
+      <div class="row" style="align-items:center"><div class="t" style="font-size:18px">Sell stocks</div><div style="margin-left:auto">${sellToggle(sellAuto ? 'Auto: type the lots. The amount is worked out from the live price, minus the 0.25% sell fee.' : 'Manual: type the lots and the amount you really received in Stockbit.')}</div></div>
+      <div class="s act-d">Sells lots of a holding. The money goes to your trading balance.</div>
       <div class="s act-a">Trading balance: <b>${rp(sc.cash)}</b></div>
       ${sc.rows.length ? `<form class="add stack" data-kind="stock" onsubmit="sellStock(event)" oninput="sellEst(this,event)" onchange="sellEst(this,event)">
         <div class="pair"><input name="date" type="date" value="${today()}" required><select name="pick">${sc.rows.map(r => `<option value="${r.i}">${esc(r.h.ticker)} · ${r.h.lots} ${r.h.lots === 1 ? 'lot' : 'lots'}</option>`).join('')}</select></div>
-        <input name="lots" type="number" min="1" placeholder="Lots" required style="text-align:right"><input name="amt" class="money" inputmode="numeric" autocomplete="off" placeholder="Amount received" required style="text-align:right"><button>Sell</button>
+        <input name="lots" type="number" min="1" placeholder="Lots" required style="text-align:right"><input name="amt" class="money" inputmode="numeric" autocomplete="off" placeholder="${sellAuto ? 'Calculated' : 'Amount received'}" ${sellAuto ? 'readonly' : 'required'} style="text-align:right"><button>Sell</button>
       </form>` : '<div class="s">You have no holdings to sell.</div>'}
     </div>
     <div class="card">
@@ -633,7 +639,7 @@ function stockPanel(k) {
   </div>
   <div class="card">
     <div class="row" style="margin-bottom:10px"><div class="t" style="font-size:18px">Holdings</div>
-      <div class="s" style="margin-left:auto;display:flex;align-items:center;gap:10px"><span class="live ${marketOpen() ? 'on' : ''}"><i></i>${marketOpen() ? 'Live' : 'Market closed'}</span>${noPrices ? 'Loading prices…' : `${GUEST ? 'Simulated prices' : 'Yahoo Finance, delayed ~10 min'} · updated <span id="quoteTime">${upd}</span>${stale ? ' · <b class="neg">some prices are old</b>' : ''}`}<button class="ib edit sm" data-tip="Refresh prices" aria-label="Refresh prices" onclick="loadQuotes(true).then(render)">${icon('refresh', 'regular', 16)}</button></div></div>
+      <div class="s" style="margin-left:auto;display:flex;align-items:center;gap:10px"><span class="live ${marketOpen() ? 'on' : ''}"><i></i>${marketOpen() ? 'Live' : 'Market closed'}</span>${noPrices ? 'Loading prices…' : `${GUEST ? 'Simulated prices' : 'Yahoo Finance, delayed ~10 min' + priceFrom} · updated <span id="quoteTime">${upd}</span>${stale ? ' · <b class="neg">some prices are old</b>' : ''}`}<button class="ib edit sm" data-tip="Refresh prices" aria-label="Refresh prices" onclick="loadQuotes(true).then(render)">${icon('refresh', 'regular', 16)}</button></div></div>
     <form id="hadd" onsubmit="addHolding(event)"></form>
     <table class="crud">
       <tr><th style="width:150px">Stock</th><th class="r" style="width:110px">Lots</th><th class="r" style="width:190px">Invested</th><th class="r">Avg price</th><th class="r">Last price</th><th class="r">Today</th><th class="r">Market value</th><th class="r">P&L</th><th class="r">Return</th><th style="width:80px"></th></tr>
@@ -649,7 +655,7 @@ function stockPanel(k) {
         <td><input type="number" min="0" value="${r.h.lots}" onchange="editHolding(${r.i},'lots',this.value)" style="text-align:right"></td>
         <td><input class="money" data-dec="2" inputmode="decimal" autocomplete="off" value="${fmT(r.h.invested)}" title="Exact: ${(Math.round(r.h.invested * 100) / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (the screen cuts decimals off, like Stockbit)" onchange="editHolding(${r.i},'invested',this.value)" style="text-align:right"></td>
         <td class="r">${avgPrice(r.avg)}</td>
-        <td class="r ${flash[r.h.ticker + '.JK'] ? 'flash-' + flash[r.h.ticker + '.JK'] : ''}">${r.price != null ? rp(r.price) : '—'}</td>
+        <td class="r ${flash[r.h.ticker + '.JK'] ? 'flash-' + flash[r.h.ticker + '.JK'] : ''}" ${r.q && r.q.asof ? `title="Price from ${hm(r.q.asof)}"` : ''}>${r.price != null ? rp(r.price) : '—'}</td>
         <td class="r ${plClass(r.day || 0)}">${r.day != null ? signed(r.day) : '—'}</td>
         <td class="r ${flash[r.h.ticker + '.JK'] ? 'flash-' + flash[r.h.ticker + '.JK'] : ''}"><b>${rpT(r.value)}</b></td>
         <td class="r ${plClass(r.pl)}"><b>${(r.pl > 0 ? '+' : '') + rpT(r.pl)}</b></td>
@@ -682,16 +688,16 @@ function goldPanel() {
   return `
   <div class="note"><span class="ni">ⓘ</span><div>${GUEST ? 'These values are made up for this demo. The gold price is calculated from simulated gold futures and a simulated USD to IDR rate.' : GOLD_INFO[goldSource()].note}</div></div>
   <div class="grid g4" style="margin-bottom:14px">
-    ${box('Total grams', gc.grams.toLocaleString('en-US', {maximumFractionDigits: 6}) + ' g')}
-    ${box('Invested', rp(gc.paid))}
+    ${box('Total grams', gc.grams.toLocaleString('en-US', {maximumFractionDigits: 6}) + ' g', '', 'All your purchases together')}
+    ${box('Invested', rp(gc.paid), '', 'Total paid for your gold')}
     ${box('Value now', rp(gc.value), '', gc.price ? (GUEST ? 'Simulated price' : goldSource() === 'treasury' ? 'Treasury website' : goldSource() === 'yahoo' ? 'Yahoo Finance estimate' : 'Last saved price') : 'Loading price…')}
-    ${box('P&L', (gc.pl > 0 ? '+' : '') + rp(gc.pl) + ' (' + signed(gc.ret) + ')', plClass(gc.pl))}
+    ${box('P&L', (gc.pl > 0 ? '+' : '') + rp(gc.pl) + ' (' + signed(gc.ret) + ')', plClass(gc.pl), 'Value now minus invested')}
   </div>
   <div class="card" style="margin-bottom:14px">
-    <div class="row" style="margin-bottom:6px"><div class="t" style="font-size:18px">Sell gold</div><div class="s" style="margin-left:auto">You hold <b>${gc.grams.toLocaleString('en-US', {maximumFractionDigits: 6})} g</b></div></div>
-    <div class="s" style="margin-bottom:10px">The money goes to your cash saving. The amount is filled in from the live price, so change it to match the real number in Treasury. The oldest purchases are sold first.</div>
+    <div class="row" style="margin-bottom:6px;align-items:center"><div class="t" style="font-size:18px">Sell gold</div><div class="row" style="margin-left:auto;gap:14px;align-items:center"><div class="s">You hold <b>${gc.grams.toLocaleString('en-US', {maximumFractionDigits: 6})} g</b></div>${sellToggle(sellAuto ? 'Auto: type the grams. The amount is worked out from the live sell price.' : 'Manual: type the grams and the amount you really received.')}</div></div>
+    <div class="s" style="margin-bottom:10px">The money goes to your cash saving. The oldest purchases are sold first.</div>
     <form class="add" data-kind="gold" onsubmit="sellGold(event)" oninput="sellEst(this,event)" onchange="sellEst(this,event)" style="margin-top:0">
-      <input name="date" type="date" value="${today()}" required style="flex:0 0 160px"><input name="grams" type="number" step="any" min="0" placeholder="Grams" required style="flex:0 0 120px;text-align:right"><input name="amt" class="money" inputmode="numeric" autocomplete="off" placeholder="Amount received" required style="flex:0 0 200px;text-align:right"><input name="note" placeholder="Remarks"><button>Sell</button>
+      <input name="date" type="date" value="${today()}" required style="flex:0 0 160px"><input name="grams" type="number" step="any" min="0" placeholder="Grams" required style="flex:0 0 120px;text-align:right"><input name="amt" class="money" inputmode="numeric" autocomplete="off" placeholder="${sellAuto ? 'Calculated' : 'Amount received'}" ${sellAuto ? 'readonly' : 'required'} style="flex:0 0 200px;text-align:right"><input name="note" placeholder="Remarks"><button>Sell</button>
     </form>
   </div>
   <div class="card">
@@ -795,11 +801,10 @@ async function addHolding(ev) {
 }
 // the "Amount received" box follows the estimate until the user types their own number
 function sellEst(f, e) {
-  if (e.target.name === 'amt') { if (e.type === 'input') f.amt.dataset.touched = '1'; return; }
-  if (f.amt.dataset.touched === '1') return;
+  if (!sellAuto || e.target.name === 'amt') return;   // Manual: the user types the amount
   let est = 0;
   if (f.dataset.kind === 'gold') est = Math.round((Number(f.grams.value) || 0) * (goldCalc().price || 0));
-  else { const r = stockCalc().rows[Number(f.pick.value)]; est = r && r.price != null ? Math.round((Number(f.lots.value) || 0) * 100 * r.price) : 0; }
+  else { const r = stockCalc().rows[Number(f.pick.value)]; est = r && r.price != null ? Math.round((Number(f.lots.value) || 0) * 100 * r.price * 0.9975) : 0; }   // 0.25% Stockbit sell fee
   f.amt.value = est ? fm(est) : '';
 }
 async function sellStock(ev) {

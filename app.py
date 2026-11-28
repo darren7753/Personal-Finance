@@ -300,9 +300,9 @@ def _load_quotes(symbols):
             return {}
         with _db() as conn:
             rows = conn.execute(
-                "select symbol, price, prev, ts from quotes where symbol = any(%s)", [symbols]
+                "select symbol, price, prev, ts, asof from quotes where symbol = any(%s)", [symbols]
             ).fetchall()
-        return {r[0]: {"price": r[1], "prev": r[2], "ts": r[3]} for r in rows}
+        return {r[0]: {"price": r[1], "prev": r[2], "ts": r[3], "asof": r[4]} for r in rows}
     if QUOTES.exists():
         try:
             return json.loads(QUOTES.read_text(encoding="utf-8"))
@@ -319,9 +319,9 @@ def _save_quotes(cache, updated):
             for s in updated:
                 q = cache[s]
                 conn.execute(
-                    "insert into quotes (symbol, price, prev, ts) values (%s, %s, %s, %s) "
-                    "on conflict (symbol) do update set price = excluded.price, prev = excluded.prev, ts = excluded.ts",
-                    [s, q["price"], q["prev"], q["ts"]],
+                    "insert into quotes (symbol, price, prev, ts, asof) values (%s, %s, %s, %s, %s) "
+                    "on conflict (symbol) do update set price = excluded.price, prev = excluded.prev, ts = excluded.ts, asof = excluded.asof",
+                    [s, q["price"], q["prev"], q["ts"], q.get("asof")],
                 )
         return
     QUOTES.parent.mkdir(exist_ok=True)
@@ -369,14 +369,20 @@ def quotes():
             if s in ("TREASURY_BUY", "TREASURY_SELL"):
                 treasury = treasury or _treasury_gold()
                 # ts is the time Treasury stamped on the price (not now), so the page can show it; it also means Treasury is asked again on every call
-                q = {"price": treasury[s][0], "prev": treasury[s][1], "ts": treasury[s][2]}
+                q = {"price": treasury[s][0], "prev": treasury[s][1], "ts": treasury[s][2], "asof": treasury[s][2]}
             else:
                 import yfinance as yf
 
                 if ON_VERCEL:  # the only writable folder on Vercel is the temp folder
                     yf.set_tz_cache_location(os.path.join(tempfile.gettempdir(), "yf-cache"))
-                info = yf.Ticker(s).fast_info
-                q = {"price": float(info["last_price"]), "prev": float(info["previous_close"]), "ts": now}
+                ticker = yf.Ticker(s)
+                info = ticker.fast_info
+                q = {"price": float(info["last_price"]), "prev": float(info["previous_close"]), "ts": now, "asof": None}
+                if s.endswith(".JK"):  # when that price was traded: the time of Yahoo's last one-minute bar, so the page can show "price from HH:MM"
+                    try:
+                        q["asof"] = float(ticker.history(period="1d", interval="1m").index[-1].timestamp())
+                    except Exception:
+                        pass
             cache[s] = q
             updated.append(s)
             out[s] = {**q, "stale": False}
